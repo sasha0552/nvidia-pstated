@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  - pull_request
+  - push
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        build_type: [Release]
+
+        include:
+          - os: windows-latest
+            c_compiler: cl
+
+          - os: ubuntu-latest
+            c_compiler: gcc
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure project
+      run: >
+        cmake
+        -B ${{ github.workspace }}/build
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -S ${{ github.workspace }}
+
+    - name: Build project
+      run: >
+        cmake
+        --build ${{ github.workspace }}/build
+        --config ${{ matrix.build_type }}
