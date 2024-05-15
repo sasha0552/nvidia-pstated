@@ -39,3 +39,8 @@ jobs:
         cmake
         --build ${{ github.workspace }}/build
         --config ${{ matrix.build_type }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        path: build/**/nvidia-pstated*
