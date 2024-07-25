@@ -1,0 +1,90 @@
+name: Build
+
+on:
+  - pull_request
+  - push
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        build_type: [Release]
+
+        include:
+          - os: windows-latest
+            c_compiler: cl
+
+          - os: ubuntu-latest
+            c_compiler: gcc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - if: runner.os == 'Linux'
+        name: Install CUDA toolkit on Linux
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          method: network
+          sub-packages: '["nvcc", "nvml-dev"]'
+
+      - if: runner.os == 'Windows'
+        name: Install CUDA toolkit on Windows
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          method: network
+          sub-packages: '["cudart", "nvcc", "nvml_dev"]'
+
+      - if: runner.os == 'Linux'
+        name: Install NVAPI headers on Linux
+        run: ./nvapi.sh
+
+      - if: runner.os == 'Windows'
+        name: Install NVAPI headers on Windows
+        run: .\nvapi.ps1
+
+      - name: Configure project
+        run: >
+          cmake
+          -B ${{ github.workspace }}/build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -S ${{ github.workspace }}
+
+      - name: Build project
+        run: >
+          cmake
+          --build ${{ github.workspace }}/build
+          --config ${{ matrix.build_type }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.os }}
+          path: |
+            build/Release/nvidia-pstated.exe
+            build/nvidia-pstated
+
+  publish:
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            */Release/nvidia-pstated.exe
+            */nvidia-pstated
