@@ -15,11 +15,9 @@ On Debian derivatives, you can use `apt search libnvidia-api.so.1` and `apt sear
 
 ### Installation
 
-Download the latest version of the executable for your OS from [workflows](https://github.com/sasha0552/nvidia-pstated/actions).
+Download the latest version of the executable for your OS from [releases](https://github.com/sasha0552/nvidia-pstated/releases).
 
-Note that you need to be logged into GitHub to do this. Use [nightly.link](https://nightly.link/) to download artifacts without logging in.
-
-## Compilation
+## Building from source code
 
 ### Prerequirements
 
