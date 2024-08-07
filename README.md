@@ -61,7 +61,7 @@ cmake --build build
 
 ### systemd service
 
-Install `nvidia-pstated` in `/usr/local/bin`. Then save the following file as `/etc/systemd/system/nvidia-pstated.service`.
+Install `nvidia-pstated` in `/usr/local/bin`. Then save the following as `/etc/systemd/system/nvidia-pstated.service`.
 
 ```text
 [Unit]
