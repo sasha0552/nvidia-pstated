@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <nvapi.h>
 #include <nvml.h>
 #include <signal.h>
@@ -42,6 +43,35 @@ static gpuState gpuStates[NVAPI_MAX_PHYSICAL_GPUS];
 
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
+static bool parse_uint_option(const char *arg, unsigned int *value) {
+  // Check if either the input argument or the output value pointer is NULL
+  if (arg == NULL || value == NULL) {
+    return false;
+  }
+
+  // Declare a pointer to track where strtoll stops parsing
+  char *endptr;
+
+  // Convert the string to a long integer using base 10
+  long long int result = strtoll(arg, &endptr, 10);
+
+  // Check if the entire string was not consumed or if no digits were found
+  if (*endptr != '\0' || endptr == arg) {
+    return false;
+  }
+
+  // Check if the result is within the range of an unsigned int
+  if (result < 0 || result > UINT_MAX) {
+    return false;
+  }
+
+  // Assign the result to the output value
+  *value = (unsigned int) result;
+
+  // Conversion successful and the input was valid
+  return true;
+}
+
 static void handle_exit(int signal) {
   // Check if the received signal is SIGINT or SIGTERM
   if (signal == SIGINT || signal == SIGTERM) {
@@ -74,7 +104,74 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
   return false;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  /***** OPTIONS *****/
+  unsigned int performance_state_high = PERFORMANCE_STATE_HIGH;
+  unsigned int iterations_before_switch = ITERATIONS_BEFORE_SWITCH;
+  unsigned int performance_state_low = PERFORMANCE_STATE_LOW;
+  unsigned int sleep_interval = SLEEP_INTERVAL;
+
+  /***** OPTION PARSING *****/
+  {
+    for (unsigned int i = 1; i < argc; i++) {
+      // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
+      if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in performance_state_high
+        if (!parse_uint_option(argv[i++], &performance_state_high)) {
+          goto errored;
+        }
+
+        // Continue to the next argument
+        continue;
+      }
+
+      // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
+      if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in iterations_before_switch
+        if (!parse_uint_option(argv[i++], &iterations_before_switch)) {
+          goto errored;
+        }
+
+        // Continue to the next argument
+        continue;
+      }
+
+      // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
+      if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in performance_state_low
+        if (!parse_uint_option(argv[i++], &performance_state_low)) {
+          goto errored;
+        }
+
+        // Continue to the next argument
+        continue;
+      }
+
+      // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
+      if ((IS_OPTION("-si") || IS_OPTION("--sleep-interval")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in sleep_interval
+        if (!parse_uint_option(argv[i++], &sleep_interval)) {
+          goto errored;
+        }
+
+        // Continue to the next argument
+        continue;
+      }
+
+      // If an invalid option is provided, print the usage instructions
+      printf("Usage: %s [options]\n", argv[0]);
+      printf("\n");
+      printf("Options:\n");
+      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_HIGH);
+      printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %d)\n", ITERATIONS_BEFORE_SWITCH);
+      printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_LOW);
+      printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %d)\n", SLEEP_INTERVAL);
+
+      // If an invalid option is encountered, jump to the errored label
+      goto errored;
+    }
+  }
+
   /***** SIGNALS *****/
   {
     // Set up signal handling
@@ -116,13 +213,19 @@ int main() {
 
   /***** INIT *****/
   {
+    // Print variables
+    printf("performance_state_high = %d\n", performance_state_high);
+    printf("iterations_before_switch = %d\n", iterations_before_switch);
+    printf("performance_state_low = %d\n", performance_state_low);
+    printf("sleep_interval = %d\n", sleep_interval);
+
     // Print the number of GPUs being managed
     printf("Managing %d GPUs...\n", deviceCount);
 
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
       // Switch to low performance state
-      if (!enter_pstate(i, PERFORMANCE_STATE_LOW)) {
+      if (!enter_pstate(i, performance_state_low)) {
         goto errored;
       }
     }
@@ -143,9 +246,9 @@ int main() {
         // Check if the GPU utilization is not zero
         if (utilization.gpu != 0) {
           // If the GPU is not already in high performance state
-          if (state->pstateId != PERFORMANCE_STATE_HIGH) {
+          if (state->pstateId != performance_state_high) {
             // Switch to high performance state
-            if (!enter_pstate(i, PERFORMANCE_STATE_HIGH)) {
+            if (!enter_pstate(i, performance_state_high)) {
               goto errored;
             }
           } else {
@@ -154,11 +257,11 @@ int main() {
           }
         } else {
           // If the GPU is not already in low performance state
-          if (state->pstateId != PERFORMANCE_STATE_LOW) {
+          if (state->pstateId != performance_state_low) {
             // If the number of iterations exceeds the threshold
-            if (state->iterations > ITERATIONS_BEFORE_SWITCH) {
+            if (state->iterations > iterations_before_switch) {
               // Switch to low performance state
-              if (!enter_pstate(i, PERFORMANCE_STATE_LOW)) {
+              if (!enter_pstate(i, performance_state_low)) {
                 goto errored;
               }
             }
@@ -171,9 +274,9 @@ int main() {
 
       // Sleep for a defined interval before the next check
       #ifdef _WIN32
-        Sleep(SLEEP_INTERVAL);
+        Sleep(sleep_interval);
       #elif __linux__
-        usleep(SLEEP_INTERVAL * 1000);
+        usleep(sleep_interval * 1000);
       #endif
     }
   }

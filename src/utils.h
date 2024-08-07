@@ -6,16 +6,22 @@
 // High performance state for the GPU
 #define PERFORMANCE_STATE_HIGH 16
 
-// Low performance state for the GPU
-#define PERFORMANCE_STATE_LOW 8
-
 // Number of iterations to wait before switching states
 #define ITERATIONS_BEFORE_SWITCH 30
+
+// Low performance state for the GPU
+#define PERFORMANCE_STATE_LOW 8
 
 // Sleep interval (in milliseconds) between utilization checks
 #define SLEEP_INTERVAL 100
 
 /***** ***** ***** ***** ***** MACROS ***** ***** ***** ***** *****/
+
+// Macro to check if the current argument matches the given string
+#define IS_OPTION(arg) (strcmp(argv[i], (arg)) == 0)
+
+// Macro to check if there is a next argument
+#define HAS_NEXT_ARG (i + 1 < argc)
 
 // Macro to simplify NVAPI function calls and handle errors
 #define NVAPI_CALL(call, label) do {                                   \
