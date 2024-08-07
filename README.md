@@ -56,3 +56,24 @@ cmake -B build
 # Build
 cmake --build build
 ```
+
+## Misc
+
+### systemd service
+
+Install `nvidia-pstated` in `/usr/local/bin`. Then save the following file as `/etc/systemd/system/nvidia-pstated.service`.
+
+```text
+[Unit]
+Description=A daemon that automatically manages the performance states of NVIDIA GPUs
+StartLimitInterval=0
+
+[Service]
+DynamicUser=yes
+ExecStart=/usr/local/bin/nvidia-pstated
+Restart=on-failure
+RestartSec=1s
+
+[Install]
+WantedBy=multi-user.target
+```
