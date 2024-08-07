@@ -117,8 +117,8 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
       if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performance_state_high
-        if (!parse_uint_option(argv[i++], &performance_state_high)) {
-          goto errored;
+        if (!parse_uint_option(argv[++i], &performance_state_high)) {
+          goto usage;
         }
 
         // Continue to the next argument
@@ -128,8 +128,8 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterations_before_switch
-        if (!parse_uint_option(argv[i++], &iterations_before_switch)) {
-          goto errored;
+        if (!parse_uint_option(argv[++i], &iterations_before_switch)) {
+          goto usage;
         }
 
         // Continue to the next argument
@@ -139,8 +139,8 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
       if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performance_state_low
-        if (!parse_uint_option(argv[i++], &performance_state_low)) {
-          goto errored;
+        if (!parse_uint_option(argv[++i], &performance_state_low)) {
+          goto usage;
         }
 
         // Continue to the next argument
@@ -150,13 +150,16 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
       if ((IS_OPTION("-si") || IS_OPTION("--sleep-interval")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in sleep_interval
-        if (!parse_uint_option(argv[i++], &sleep_interval)) {
-          goto errored;
+        if (!parse_uint_option(argv[++i], &sleep_interval)) {
+          goto usage;
         }
 
         // Continue to the next argument
         continue;
       }
+
+      // If an invalid option is encountered, print the usage instructions
+      usage:
 
       // If an invalid option is provided, print the usage instructions
       printf("Usage: %s [options]\n", argv[0]);
@@ -167,7 +170,7 @@ int main(int argc, char *argv[]) {
       printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_LOW);
       printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %d)\n", SLEEP_INTERVAL);
 
-      // If an invalid option is encountered, jump to the errored label
+      // Jump to the error handling code
       goto errored;
     }
   }
