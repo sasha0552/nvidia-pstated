@@ -286,6 +286,14 @@ int main(int argc, char *argv[]) {
 
   /***** NORMAL EXIT *****/
   {
+    // Iterate through each GPU
+    for (unsigned int i = 0; i < deviceCount; i++) {
+      // Switch to automatic management of performance state
+      if (!enter_pstate(i, 16)) {
+        goto errored;
+      }
+    }
+
     // Notify about the exit
     printf("Exiting...\n");
 
@@ -294,7 +302,7 @@ int main(int argc, char *argv[]) {
   }
 
   errored:
-  /***** APPLICATION ERROR HAPPENED *****/
+  /***** APPLICATION ERROR OCCURRED *****/
   {
     error_occurred = true;
   }
