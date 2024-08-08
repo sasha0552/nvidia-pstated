@@ -59,6 +59,16 @@ cmake --build build
 
 ## Misc
 
+### Managing only specific GPUs
+
+You can use `CUDA_VISIBLE_DEVICES` to manage only specific GPUs.
+
+Suppose you have 8 GPUs and you want to manage only the first 4:
+
+```sh
+CUDA_VISIABLE_DEVICES=0,1,2,3 ./nvidia-pstated
+```
+
 ### systemd service
 
 Install `nvidia-pstated` in `/usr/local/bin`. Then save the following as `/etc/systemd/system/nvidia-pstated.service`.
@@ -77,3 +87,5 @@ RestartSec=1s
 [Install]
 WantedBy=multi-user.target
 ```
+
+You can add `Environment=CUDA_VISIBLE_DEVICES=...` in `[Service]` section to manage only specific GPUs.
