@@ -35,6 +35,9 @@ static nvmlDevice_t nvmlDevices[NVAPI_MAX_PHYSICAL_GPUS];
 // Variable to store the number of GPU devices
 static unsigned int deviceCount;
 
+// Variable to store GPU temperature
+static unsigned int temperature;
+
 // Variable to store GPU utilization information
 static nvmlUtilization_t utilization;
 
@@ -106,18 +109,19 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
 
 int main(int argc, char *argv[]) {
   /***** OPTIONS *****/
-  unsigned int performance_state_high = PERFORMANCE_STATE_HIGH;
   unsigned int iterations_before_switch = ITERATIONS_BEFORE_SWITCH;
+  unsigned int performance_state_high = PERFORMANCE_STATE_HIGH;
   unsigned int performance_state_low = PERFORMANCE_STATE_LOW;
   unsigned int sleep_interval = SLEEP_INTERVAL;
+  unsigned int temperature_threshold = TEMPERATURE_THRESHOLD;
 
   /***** OPTION PARSING *****/
   {
     for (unsigned int i = 1; i < argc; i++) {
-      // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
-      if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in performance_state_high
-        if (!parse_uint_option(argv[++i], &performance_state_high)) {
+      // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
+      if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in iterations_before_switch
+        if (!parse_uint_option(argv[++i], &iterations_before_switch)) {
           goto usage;
         }
 
@@ -125,10 +129,10 @@ int main(int argc, char *argv[]) {
         continue;
       }
 
-      // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
-      if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in iterations_before_switch
-        if (!parse_uint_option(argv[++i], &iterations_before_switch)) {
+      // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
+      if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in performance_state_high
+        if (!parse_uint_option(argv[++i], &performance_state_high)) {
           goto usage;
         }
 
@@ -158,6 +162,17 @@ int main(int argc, char *argv[]) {
         continue;
       }
 
+      // Check if the option is "-tt" or "--temperature-threshold" and if there is a next argument
+      if ((IS_OPTION("-tt") || IS_OPTION("--temperature-threshold")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in sleep_interval
+        if (!parse_uint_option(argv[++i], &temperature_threshold)) {
+          goto usage;
+        }
+
+        // Continue to the next argument
+        continue;
+      }
+
       // If an invalid option is encountered, print the usage instructions
       usage:
 
@@ -165,10 +180,11 @@ int main(int argc, char *argv[]) {
       printf("Usage: %s [options]\n", argv[0]);
       printf("\n");
       printf("Options:\n");
-      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_HIGH);
       printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %d)\n", ITERATIONS_BEFORE_SWITCH);
+      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_HIGH);
       printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_LOW);
       printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %d)\n", SLEEP_INTERVAL);
+      printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %d)\n", TEMPERATURE_THRESHOLD);
 
       // Jump to the error handling code
       goto errored;
@@ -217,10 +233,11 @@ int main(int argc, char *argv[]) {
   /***** INIT *****/
   {
     // Print variables
-    printf("performance_state_high = %d\n", performance_state_high);
     printf("iterations_before_switch = %d\n", iterations_before_switch);
+    printf("performance_state_high = %d\n", performance_state_high);
     printf("performance_state_low = %d\n", performance_state_low);
     printf("sleep_interval = %d\n", sleep_interval);
+    printf("temperature_threshold = %d\n", temperature_threshold);
 
     // Print the number of GPUs being managed
     printf("Managing %d GPUs...\n", deviceCount);
@@ -236,12 +253,29 @@ int main(int argc, char *argv[]) {
 
   /***** MAIN LOOP *****/
   {
-    // Infinite loop to continuously monitor GPU utilization
+    // Infinite loop to continuously monitor GPU temperature and utilization
     while (should_run) {
-      // Loop through all devices to get their utilization rates
+      // Loop through all devices
       for (unsigned int i = 0; i < deviceCount; i++) {
         // Get the current state of the GPU
         gpuState * state = &gpuStates[i];
+
+        // Retrieve the current temperature of the GPU
+        NVML_CALL(nvmlDeviceGetTemperature(nvmlDevices[i], NVML_TEMPERATURE_GPU, &temperature), errored);
+
+        // Check if the GPU temperature exceeds the defined threshold
+        if (temperature > temperature_threshold) {
+          // If the GPU is not already in low performance state
+          if (state->pstateId != performance_state_low) {
+            // Switch to low performance state
+            if (!enter_pstate(i, performance_state_low)) {
+              goto errored;
+            }
+          }
+
+          // Skip further checks for this iteration
+          continue;
+        }
 
         // Retrieve the current utilization rates of the GPU
         NVML_CALL(nvmlDeviceGetUtilizationRates(nvmlDevices[i], &utilization), errored);

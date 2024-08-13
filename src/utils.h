@@ -3,17 +3,20 @@
 
 /***** ***** ***** ***** ***** CONSTANTS ***** ***** ***** ***** *****/
 
-// High performance state for the GPU
-#define PERFORMANCE_STATE_HIGH 16
-
 // Number of iterations to wait before switching states
 #define ITERATIONS_BEFORE_SWITCH 30
+
+// High performance state for the GPU
+#define PERFORMANCE_STATE_HIGH 16
 
 // Low performance state for the GPU
 #define PERFORMANCE_STATE_LOW 8
 
 // Sleep interval (in milliseconds) between utilization checks
 #define SLEEP_INTERVAL 100
+
+// Temperature threshold (in degrees C)
+#define TEMPERATURE_THRESHOLD 80
 
 /***** ***** ***** ***** ***** MACROS ***** ***** ***** ***** *****/
 
