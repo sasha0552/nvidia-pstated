@@ -59,6 +59,7 @@ cmake --build build
 
 ## Misc
 
+<!--
 ### Managing only specific GPUs
 
 You can use `CUDA_VISIBLE_DEVICES` to manage only specific GPUs.
@@ -68,6 +69,7 @@ Suppose you have 8 GPUs and you want to manage only the first 4:
 ```sh
 CUDA_VISIABLE_DEVICES=0,1,2,3 ./nvidia-pstated
 ```
+-->
 
 ### systemd service
 
@@ -88,4 +90,6 @@ RestartSec=1s
 WantedBy=multi-user.target
 ```
 
+<!--
 You can add `Environment=CUDA_VISIBLE_DEVICES=...` in `[Service]` section to manage only specific GPUs.
+-->
