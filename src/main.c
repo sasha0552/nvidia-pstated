@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) {
 
   /***** OPTION PARSING *****/
   {
+    // Iterate through command-line arguments
     for (unsigned int i = 1; i < argc; i++) {
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
@@ -124,9 +125,6 @@ int main(int argc, char *argv[]) {
         if (!parse_uint_option(argv[++i], &iterations_before_switch)) {
           goto usage;
         }
-
-        // Continue to the next argument
-        continue;
       }
 
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
@@ -135,9 +133,6 @@ int main(int argc, char *argv[]) {
         if (!parse_uint_option(argv[++i], &performance_state_high)) {
           goto usage;
         }
-
-        // Continue to the next argument
-        continue;
       }
 
       // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
@@ -146,9 +141,6 @@ int main(int argc, char *argv[]) {
         if (!parse_uint_option(argv[++i], &performance_state_low)) {
           goto usage;
         }
-
-        // Continue to the next argument
-        continue;
       }
 
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
@@ -157,9 +149,6 @@ int main(int argc, char *argv[]) {
         if (!parse_uint_option(argv[++i], &sleep_interval)) {
           goto usage;
         }
-
-        // Continue to the next argument
-        continue;
       }
 
       // Check if the option is "-tt" or "--temperature-threshold" and if there is a next argument
@@ -168,15 +157,15 @@ int main(int argc, char *argv[]) {
         if (!parse_uint_option(argv[++i], &temperature_threshold)) {
           goto usage;
         }
-
-        // Continue to the next argument
-        continue;
       }
+    }
 
-      // If an invalid option is encountered, print the usage instructions
+    // Display usage instructions to the user
+    if (false) {
+      // Display usage instructions to the user
       usage:
 
-      // If an invalid option is provided, print the usage instructions
+      // Print the usage instructions
       printf("Usage: %s [options]\n", argv[0]);
       printf("\n");
       printf("Options:\n");
