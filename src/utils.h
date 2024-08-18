@@ -27,7 +27,7 @@
 #define HAS_NEXT_ARG (i + 1 < argc)
 
 // Macro to check if a condition is true and jump to a label if it is not
-#define IS_TRUE(call, label) do {       \
+#define ASSERT_TRUE(call, label) do {       \
   /* Evaluate the condition */          \
   int result = (call);                  \
                                         \
@@ -39,7 +39,7 @@
 } while(0);
 
 // Macro to check if a condition is false and jump to a label if it is not
-#define IS_FALSE(call, label) do {     \
+#define ASSERT_FALSE(call, label) do {     \
   /* Evaluate the condition */         \
   int result = (call);                 \
                                        \

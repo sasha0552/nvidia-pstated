@@ -122,31 +122,31 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterations_before_switch
-        IS_TRUE(parse_uint(argv[++i], &iterations_before_switch), usage);
+        ASSERT_TRUE(parse_uint(argv[++i], &iterations_before_switch), usage);
       }
 
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
       if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performance_state_high
-        IS_TRUE(parse_uint(argv[++i], &performance_state_high), usage);
+        ASSERT_TRUE(parse_uint(argv[++i], &performance_state_high), usage);
       }
 
       // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
       if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performance_state_low
-        IS_TRUE(parse_uint(argv[++i], &performance_state_low), usage);
+        ASSERT_TRUE(parse_uint(argv[++i], &performance_state_low), usage);
       }
 
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
       if ((IS_OPTION("-si") || IS_OPTION("--sleep-interval")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in sleep_interval
-        IS_TRUE(parse_uint(argv[++i], &sleep_interval), usage);
+        ASSERT_TRUE(parse_uint(argv[++i], &sleep_interval), usage);
       }
 
       // Check if the option is "-tt" or "--temperature-threshold" and if there is a next argument
       if ((IS_OPTION("-tt") || IS_OPTION("--temperature-threshold")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in temperature_threshold
-        IS_TRUE(parse_uint(argv[++i], &temperature_threshold), usage);
+        ASSERT_TRUE(parse_uint(argv[++i], &temperature_threshold), usage);
       }
     }
 
