@@ -46,7 +46,7 @@ static gpuState gpuStates[NVAPI_MAX_PHYSICAL_GPUS];
 
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
-static bool parse_uint_option(const char *arg, unsigned int *value) {
+static bool parse_uint(const char *arg, unsigned int *value) {
   // Check if either the input argument or the output value pointer is NULL
   if (arg == NULL || value == NULL) {
     return false;
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterations_before_switch
-        if (!parse_uint_option(argv[++i], &iterations_before_switch)) {
+        if (!parse_uint(argv[++i], &iterations_before_switch)) {
           goto usage;
         }
       }
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
       if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performance_state_high
-        if (!parse_uint_option(argv[++i], &performance_state_high)) {
+        if (!parse_uint(argv[++i], &performance_state_high)) {
           goto usage;
         }
       }
@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
       if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performance_state_low
-        if (!parse_uint_option(argv[++i], &performance_state_low)) {
+        if (!parse_uint(argv[++i], &performance_state_low)) {
           goto usage;
         }
       }
@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
       if ((IS_OPTION("-si") || IS_OPTION("--sleep-interval")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in sleep_interval
-        if (!parse_uint_option(argv[++i], &sleep_interval)) {
+        if (!parse_uint(argv[++i], &sleep_interval)) {
           goto usage;
         }
       }
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-tt" or "--temperature-threshold" and if there is a next argument
       if ((IS_OPTION("-tt") || IS_OPTION("--temperature-threshold")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in sleep_interval
-        if (!parse_uint_option(argv[++i], &temperature_threshold)) {
+        if (!parse_uint(argv[++i], &temperature_threshold)) {
           goto usage;
         }
       }
