@@ -19,10 +19,10 @@
 /***** ***** ***** ***** ***** VARIABLES ***** ***** ***** ***** *****/
 
 // Flag indicating whether the program should continue running
-static volatile sig_atomic_t should_run = true;
+static volatile sig_atomic_t shouldRun = true;
 
 // Flag indicating whether an error has occurred
-static bool error_occurred = false;
+static bool errorOccurred = false;
 
 // Flags to check initialization status of NVML and NVAPI libraries
 static bool nvapiInitialized = false;
@@ -79,7 +79,7 @@ static void handle_exit(int signal) {
   // Check if the received signal is SIGINT or SIGTERM
   if (signal == SIGINT || signal == SIGTERM) {
     // Set the global flag to false to indicate the program should stop running
-    should_run = false;
+    shouldRun = false;
   }
 }
 
@@ -109,11 +109,11 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
 
 int main(int argc, char *argv[]) {
   /***** OPTIONS *****/
-  unsigned int iterations_before_switch = ITERATIONS_BEFORE_SWITCH;
-  unsigned int performance_state_high = PERFORMANCE_STATE_HIGH;
-  unsigned int performance_state_low = PERFORMANCE_STATE_LOW;
-  unsigned int sleep_interval = SLEEP_INTERVAL;
-  unsigned int temperature_threshold = TEMPERATURE_THRESHOLD;
+  unsigned int iterationsBeforeSwitch = ITERATIONS_BEFORE_SWITCH;
+  unsigned int performanceStateHigh = PERFORMANCE_STATE_HIGH;
+  unsigned int performanceStateLow = PERFORMANCE_STATE_LOW;
+  unsigned int sleepInterval = SLEEP_INTERVAL;
+  unsigned int temperatureThreshold = TEMPERATURE_THRESHOLD;
 
   /***** OPTION PARSING *****/
   {
@@ -121,32 +121,32 @@ int main(int argc, char *argv[]) {
     for (unsigned int i = 1; i < argc; i++) {
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in iterations_before_switch
-        ASSERT_TRUE(parse_uint(argv[++i], &iterations_before_switch), usage);
+        // Parse the integer option and store it in iterationsBeforeSwitch
+        ASSERT_TRUE(parse_uint(argv[++i], &iterationsBeforeSwitch), usage);
       }
 
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
       if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in performance_state_high
-        ASSERT_TRUE(parse_uint(argv[++i], &performance_state_high), usage);
+        // Parse the integer option and store it in performanceStateHigh
+        ASSERT_TRUE(parse_uint(argv[++i], &performanceStateHigh), usage);
       }
 
       // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
       if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in performance_state_low
-        ASSERT_TRUE(parse_uint(argv[++i], &performance_state_low), usage);
+        // Parse the integer option and store it in performanceStateLow
+        ASSERT_TRUE(parse_uint(argv[++i], &performanceStateLow), usage);
       }
 
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
       if ((IS_OPTION("-si") || IS_OPTION("--sleep-interval")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in sleep_interval
-        ASSERT_TRUE(parse_uint(argv[++i], &sleep_interval), usage);
+        // Parse the integer option and store it in sleepInterval
+        ASSERT_TRUE(parse_uint(argv[++i], &sleepInterval), usage);
       }
 
       // Check if the option is "-tt" or "--temperature-threshold" and if there is a next argument
       if ((IS_OPTION("-tt") || IS_OPTION("--temperature-threshold")) && HAS_NEXT_ARG) {
-        // Parse the integer option and store it in temperature_threshold
-        ASSERT_TRUE(parse_uint(argv[++i], &temperature_threshold), usage);
+        // Parse the integer option and store it in temperatureThreshold
+        ASSERT_TRUE(parse_uint(argv[++i], &temperatureThreshold), usage);
       }
     }
 
@@ -212,11 +212,11 @@ int main(int argc, char *argv[]) {
   /***** INIT *****/
   {
     // Print variables
-    printf("iterations_before_switch = %d\n", iterations_before_switch);
-    printf("performance_state_high = %d\n", performance_state_high);
-    printf("performance_state_low = %d\n", performance_state_low);
-    printf("sleep_interval = %d\n", sleep_interval);
-    printf("temperature_threshold = %d\n", temperature_threshold);
+    printf("iterationsBeforeSwitch = %d\n", iterationsBeforeSwitch);
+    printf("performanceStateHigh = %d\n", performanceStateHigh);
+    printf("performanceStateLow = %d\n", performanceStateLow);
+    printf("sleepInterval = %d\n", sleepInterval);
+    printf("temperatureThreshold = %d\n", temperatureThreshold);
 
     // Print the number of GPUs being managed
     printf("Managing %d GPUs...\n", deviceCount);
@@ -224,7 +224,7 @@ int main(int argc, char *argv[]) {
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
       // Switch to low performance state
-      if (!enter_pstate(i, performance_state_low)) {
+      if (!enter_pstate(i, performanceStateLow)) {
         goto errored;
       }
     }
@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
   /***** MAIN LOOP *****/
   {
     // Infinite loop to continuously monitor GPU temperature and utilization
-    while (should_run) {
+    while (shouldRun) {
       // Loop through all devices
       for (unsigned int i = 0; i < deviceCount; i++) {
         // Get the current state of the GPU
@@ -243,11 +243,11 @@ int main(int argc, char *argv[]) {
         NVML_CALL(nvmlDeviceGetTemperature(nvmlDevices[i], NVML_TEMPERATURE_GPU, &temperature), errored);
 
         // Check if the GPU temperature exceeds the defined threshold
-        if (temperature > temperature_threshold) {
+        if (temperature > temperatureThreshold) {
           // If the GPU is not already in low performance state
-          if (state->pstateId != performance_state_low) {
+          if (state->pstateId != performanceStateLow) {
             // Switch to low performance state
-            if (!enter_pstate(i, performance_state_low)) {
+            if (!enter_pstate(i, performanceStateLow)) {
               goto errored;
             }
           }
@@ -262,9 +262,9 @@ int main(int argc, char *argv[]) {
         // Check if the GPU utilization is not zero
         if (utilization.gpu != 0) {
           // If the GPU is not already in high performance state
-          if (state->pstateId != performance_state_high) {
+          if (state->pstateId != performanceStateHigh) {
             // Switch to high performance state
-            if (!enter_pstate(i, performance_state_high)) {
+            if (!enter_pstate(i, performanceStateHigh)) {
               goto errored;
             }
           } else {
@@ -273,11 +273,11 @@ int main(int argc, char *argv[]) {
           }
         } else {
           // If the GPU is not already in low performance state
-          if (state->pstateId != performance_state_low) {
+          if (state->pstateId != performanceStateLow) {
             // If the number of iterations exceeds the threshold
-            if (state->iterations > iterations_before_switch) {
+            if (state->iterations > iterationsBeforeSwitch) {
               // Switch to low performance state
-              if (!enter_pstate(i, performance_state_low)) {
+              if (!enter_pstate(i, performanceStateLow)) {
                 goto errored;
               }
             }
@@ -290,9 +290,9 @@ int main(int argc, char *argv[]) {
 
       // Sleep for a defined interval before the next check
       #ifdef _WIN32
-        Sleep(sleep_interval);
+        Sleep(sleepInterval);
       #elif __linux__
-        usleep(sleep_interval * 1000);
+        usleep(sleepInterval * 1000);
       #endif
     }
   }
@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
   errored:
   /***** APPLICATION ERROR OCCURRED *****/
   {
-    error_occurred = true;
+    errorOccurred = true;
   }
 
   cleanup:
@@ -347,6 +347,6 @@ int main(int argc, char *argv[]) {
 
   /***** RETURN *****/
   {
-    return error_occurred;
+    return errorOccurred;
   }
 }
