@@ -26,6 +26,30 @@
 // Macro to check if there is a next argument
 #define HAS_NEXT_ARG (i + 1 < argc)
 
+// Macro to check if a condition is true and jump to a label if it is not
+#define IS_TRUE(call, label) do {       \
+  /* Evaluate the condition */          \
+  int result = (call);                  \
+                                        \
+  /* Check if the condition is false */ \
+  if (!result) {                        \
+    /* Jump to the specified label */   \
+    goto label;                         \
+  }                                     \
+} while(0);
+
+// Macro to check if a condition is false and jump to a label if it is not
+#define IS_FALSE(call, label) do {     \
+  /* Evaluate the condition */         \
+  int result = (call);                 \
+                                       \
+  /* Check if the condition is true */ \
+  if (result) {                        \
+    /* Jump to the specified label */  \
+    goto label;                        \
+  }                                    \
+} while(0);
+
 // Macro to simplify NVAPI function calls and handle errors
 #define NVAPI_CALL(call, label) do {                                 \
   /* Evaluate the NVAPI function call and store the result */        \
