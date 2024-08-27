@@ -286,8 +286,8 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // Flag to check if any GPUs are managed
-    bool hasManagedGpus = false;
+    // Initialize the counter for managed GPUs
+    unsigned int managedGPUs = 0;
 
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
@@ -296,26 +296,31 @@ int main(int argc, char *argv[]) {
 
       // If GPU is managed
       if (state->managed) {
-        // Update flag
-        hasManagedGpus = true;
+        // Buffer to store the GPU name
+        char gpuName[256];
+
+        // Retrieve the GPU name
+        NVML_CALL(nvmlDeviceGetName(nvmlDevices[i], gpuName, sizeof(gpuName)), errored);
+
+        // Print the managed GPU details
+        printf("%u. %s (GPU id = %u)\n", managedGPUs, gpuName, i);
+
+        // Increment the managed GPU counter
+        managedGPUs++;
       }
     }
 
     // If no GPUs are managed, report an error
-    if (!hasManagedGpus) {
+    if (managedGPUs == 0) {
       // Print error message
-      printf("Can't find GPUs to manage!");
+      printf("Can't find GPUs to manage!\n");
 
       // Jump to error handling section
       goto errored;
     }
 
     // Print the number of GPUs being managed
-    if (idsCount == 0) {
-      printf("Managing %u GPUs...\n", deviceCount);
-    } else {
-      printf("Managing %zu GPUs...\n", idsCount);
-    }
+    printf("Managing %u GPUs...\n", managedGPUs);
 
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
