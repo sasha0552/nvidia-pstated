@@ -156,11 +156,11 @@ int main(int argc, char *argv[]) {
       printf("Usage: %s [options]\n", argv[0]);
       printf("\n");
       printf("Options:\n");
-      printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %lu)\n", ITERATIONS_BEFORE_SWITCH);
-      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %lu)\n", PERFORMANCE_STATE_HIGH);
-      printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %lu)\n", PERFORMANCE_STATE_LOW);
-      printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %lu)\n", SLEEP_INTERVAL);
-      printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %lu)\n", TEMPERATURE_THRESHOLD);
+      printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %u)\n", ITERATIONS_BEFORE_SWITCH);
+      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_HIGH);
+      printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_LOW);
+      printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %u)\n", SLEEP_INTERVAL);
+      printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %u)\n", TEMPERATURE_THRESHOLD);
 
       // Jump to the error handling code
       goto errored;
