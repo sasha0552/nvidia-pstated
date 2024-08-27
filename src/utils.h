@@ -48,3 +48,4 @@
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
 bool parse_ulong(const char *arg, unsigned long *value);
+bool parse_ulong_array(const char *arg, const char *delimiter, const size_t max_count, unsigned long *values, size_t *count);

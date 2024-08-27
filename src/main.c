@@ -40,6 +40,9 @@ typedef struct {
 
   // Current performance state of the GPU
   unsigned int pstateId;
+
+  // GPU management state
+  bool managed;
 } gpuState;
 
 /***** ***** ***** ***** ***** VARIABLES ***** ***** ***** ***** *****/
@@ -84,6 +87,12 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
   // Get the current state of the GPU
   gpuState * state = &gpuStates[i];
 
+  // If GPU are unmanaged
+  if (!state->managed) {
+    // Return true to indicate success
+    return true;
+  }
+
   // Set the GPU to the desired performance state
   NVAPI_CALL(NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 2), failure);
 
@@ -94,7 +103,7 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
   state->pstateId = pstateId;
 
   // Print the current GPU state
-  printf("GPU %d entered performance state %d\n", i, state->pstateId);
+  printf("GPU %u entered performance state %u\n", i, state->pstateId);
 
   // Return true to indicate success
   return true;
@@ -106,6 +115,8 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
 
 int main(int argc, char *argv[]) {
   /***** OPTIONS *****/
+  unsigned long ids[NVAPI_MAX_PHYSICAL_GPUS] = { 0 };
+  size_t idsCount = 0;
   unsigned long iterationsBeforeSwitch = ITERATIONS_BEFORE_SWITCH;
   unsigned long performanceStateHigh = PERFORMANCE_STATE_HIGH;
   unsigned long performanceStateLow = PERFORMANCE_STATE_LOW;
@@ -116,6 +127,12 @@ int main(int argc, char *argv[]) {
   {
     // Iterate through command-line arguments
     for (unsigned int i = 1; i < argc; i++) {
+      // Check if the option is "-i" or "--ids" and if there is a next argument
+      if ((IS_OPTION("-i") || IS_OPTION("--ids")) && HAS_NEXT_ARG) {
+        // Parse the integer array option and store it in ids
+        ASSERT_TRUE(parse_ulong_array(argv[++i], ",", NVAPI_MAX_PHYSICAL_GPUS, ids, &idsCount), usage);
+      }
+
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterationsBeforeSwitch
@@ -208,15 +225,97 @@ int main(int argc, char *argv[]) {
 
   /***** INIT *****/
   {
-    // Print variables
+    // Print ids
+    {
+      // Print the initial text
+      printf("ids = ");
+
+      // Loop through each element in the array
+      for (size_t i = 0; i < idsCount; i++) {
+        // Print the current element with %lu for unsigned long
+        printf("%lu", ids[i]);
+
+        // If this is not the last element
+        if (i + 1 < idsCount) {
+          // Print a comma
+          printf(",");
+        }
+      }
+
+      // Print the count of elements in the array and newline character
+      printf(" (%zu)\n", idsCount);
+    }
+
+    // Print remaining variables
     printf("iterationsBeforeSwitch = %lu\n", iterationsBeforeSwitch);
     printf("performanceStateHigh = %lu\n", performanceStateHigh);
     printf("performanceStateLow = %lu\n", performanceStateLow);
     printf("sleepInterval = %lu\n", sleepInterval);
     printf("temperatureThreshold = %lu\n", temperatureThreshold);
 
+    // Check if there are specific GPU ids to process
+    if (idsCount != 0) {
+      // Iterate over each provided id
+      for (size_t i = 0; i < idsCount; i++) {
+        // Get the current id
+        unsigned long id = ids[i];
+
+        // Validate the id
+        if (id < 0 || id > deviceCount) {
+          // Print error message for invalid id
+          printf("Invalid GPU id: %zu\n", i);
+
+          // Skip to the next id
+          continue;
+        }
+
+        // Get the current state of the GPU
+        gpuState * state = &gpuStates[id];
+
+        // Mark the GPU as managed
+        state->managed = true;
+      }
+    } else {
+      // Iterate through each GPU
+      for (unsigned int i = 0; i < deviceCount; i++) {
+        // Get the current state of the GPU
+        gpuState * state = &gpuStates[i];
+
+        // Mark the GPU as managed
+        state->managed = true;
+      }
+    }
+
+    // Flag to check if any GPUs are managed
+    bool hasManagedGpus = false;
+
+    // Iterate through each GPU
+    for (unsigned int i = 0; i < deviceCount; i++) {
+      // Get the current state of the GPU
+      gpuState * state = &gpuStates[i];
+
+      // If GPU is managed
+      if (state->managed) {
+        // Update flag
+        hasManagedGpus = true;
+      }
+    }
+
+    // If no GPUs are managed, report an error
+    if (!hasManagedGpus) {
+      // Print error message
+      printf("Can't find GPUs to manage!");
+
+      // Jump to error handling section
+      goto errored;
+    }
+
     // Print the number of GPUs being managed
-    printf("Managing %d GPUs...\n", deviceCount);
+    if (idsCount == 0) {
+      printf("Managing %u GPUs...\n", deviceCount);
+    } else {
+      printf("Managing %zu GPUs...\n", idsCount);
+    }
 
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
