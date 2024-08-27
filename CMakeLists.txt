@@ -11,6 +11,7 @@ find_package(CUDAToolkit REQUIRED COMPONENTS nvml)
 add_executable(nvidia-pstated
   src/main.c
   src/nvapi.c
+  src/utils.c
 )
 
 # Include directories for the target

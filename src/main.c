@@ -1,11 +1,8 @@
-#include <limits.h>
 #include <nvapi.h>
 #include <nvml.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #ifdef _WIN32
   #include <windows.h>
@@ -14,7 +11,36 @@
 #endif
 
 #include "nvapi.h"
+#include "nvml.h"
 #include "utils.h"
+
+/***** ***** ***** ***** ***** CONSTANTS ***** ***** ***** ***** *****/
+
+// Number of iterations to wait before switching states
+#define ITERATIONS_BEFORE_SWITCH 30
+
+// High performance state for the GPU
+#define PERFORMANCE_STATE_HIGH 16
+
+// Low performance state for the GPU
+#define PERFORMANCE_STATE_LOW 8
+
+// Sleep interval (in milliseconds) between utilization checks
+#define SLEEP_INTERVAL 100
+
+// Temperature threshold (in degrees C)
+#define TEMPERATURE_THRESHOLD 80
+
+/***** ***** ***** ***** ***** STRUCTURES ***** ***** ***** ***** *****/
+
+// Structure to hold the state of each GPU
+typedef struct {
+  // Counter for iterations when in a specific state
+  unsigned int iterations;
+
+  // Current performance state of the GPU
+  unsigned int pstateId;
+} gpuState;
 
 /***** ***** ***** ***** ***** VARIABLES ***** ***** ***** ***** *****/
 
@@ -45,35 +71,6 @@ static nvmlUtilization_t utilization;
 static gpuState gpuStates[NVAPI_MAX_PHYSICAL_GPUS];
 
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
-
-static bool parse_uint(const char *arg, unsigned int *value) {
-  // Check if either the input argument or the output value pointer is NULL
-  if (arg == NULL || value == NULL) {
-    return false;
-  }
-
-  // Declare a pointer to track where strtoll stops parsing
-  char *endptr;
-
-  // Convert the string to a long integer using base 10
-  long long int result = strtoll(arg, &endptr, 10);
-
-  // Check if the entire string was not consumed or if no digits were found
-  if (*endptr != '\0' || endptr == arg) {
-    return false;
-  }
-
-  // Check if the result is within the range of an unsigned int
-  if (result < 0 || result > UINT_MAX) {
-    return false;
-  }
-
-  // Assign the result to the output value
-  *value = (unsigned int) result;
-
-  // Conversion successful and the input was valid
-  return true;
-}
 
 static void handle_exit(int signal) {
   // Check if the received signal is SIGINT or SIGTERM
@@ -109,11 +106,11 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
 
 int main(int argc, char *argv[]) {
   /***** OPTIONS *****/
-  unsigned int iterationsBeforeSwitch = ITERATIONS_BEFORE_SWITCH;
-  unsigned int performanceStateHigh = PERFORMANCE_STATE_HIGH;
-  unsigned int performanceStateLow = PERFORMANCE_STATE_LOW;
-  unsigned int sleepInterval = SLEEP_INTERVAL;
-  unsigned int temperatureThreshold = TEMPERATURE_THRESHOLD;
+  unsigned long iterationsBeforeSwitch = ITERATIONS_BEFORE_SWITCH;
+  unsigned long performanceStateHigh = PERFORMANCE_STATE_HIGH;
+  unsigned long performanceStateLow = PERFORMANCE_STATE_LOW;
+  unsigned long sleepInterval = SLEEP_INTERVAL;
+  unsigned long temperatureThreshold = TEMPERATURE_THRESHOLD;
 
   /***** OPTION PARSING *****/
   {
@@ -122,31 +119,31 @@ int main(int argc, char *argv[]) {
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterationsBeforeSwitch
-        ASSERT_TRUE(parse_uint(argv[++i], &iterationsBeforeSwitch), usage);
+        ASSERT_TRUE(parse_ulong(argv[++i], &iterationsBeforeSwitch), usage);
       }
 
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
       if ((IS_OPTION("-psh") || IS_OPTION("--performance-state-high")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performanceStateHigh
-        ASSERT_TRUE(parse_uint(argv[++i], &performanceStateHigh), usage);
+        ASSERT_TRUE(parse_ulong(argv[++i], &performanceStateHigh), usage);
       }
 
       // Check if the option is "-psl" or "--performance-state-low" and if there is a next argument
       if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performanceStateLow
-        ASSERT_TRUE(parse_uint(argv[++i], &performanceStateLow), usage);
+        ASSERT_TRUE(parse_ulong(argv[++i], &performanceStateLow), usage);
       }
 
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
       if ((IS_OPTION("-si") || IS_OPTION("--sleep-interval")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in sleepInterval
-        ASSERT_TRUE(parse_uint(argv[++i], &sleepInterval), usage);
+        ASSERT_TRUE(parse_ulong(argv[++i], &sleepInterval), usage);
       }
 
       // Check if the option is "-tt" or "--temperature-threshold" and if there is a next argument
       if ((IS_OPTION("-tt") || IS_OPTION("--temperature-threshold")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in temperatureThreshold
-        ASSERT_TRUE(parse_uint(argv[++i], &temperatureThreshold), usage);
+        ASSERT_TRUE(parse_ulong(argv[++i], &temperatureThreshold), usage);
       }
     }
 
@@ -159,11 +156,11 @@ int main(int argc, char *argv[]) {
       printf("Usage: %s [options]\n", argv[0]);
       printf("\n");
       printf("Options:\n");
-      printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %d)\n", ITERATIONS_BEFORE_SWITCH);
-      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_HIGH);
-      printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %d)\n", PERFORMANCE_STATE_LOW);
-      printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %d)\n", SLEEP_INTERVAL);
-      printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %d)\n", TEMPERATURE_THRESHOLD);
+      printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %lu)\n", ITERATIONS_BEFORE_SWITCH);
+      printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %lu)\n", PERFORMANCE_STATE_HIGH);
+      printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %lu)\n", PERFORMANCE_STATE_LOW);
+      printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %lu)\n", SLEEP_INTERVAL);
+      printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %lu)\n", TEMPERATURE_THRESHOLD);
 
       // Jump to the error handling code
       goto errored;
@@ -212,11 +209,11 @@ int main(int argc, char *argv[]) {
   /***** INIT *****/
   {
     // Print variables
-    printf("iterationsBeforeSwitch = %d\n", iterationsBeforeSwitch);
-    printf("performanceStateHigh = %d\n", performanceStateHigh);
-    printf("performanceStateLow = %d\n", performanceStateLow);
-    printf("sleepInterval = %d\n", sleepInterval);
-    printf("temperatureThreshold = %d\n", temperatureThreshold);
+    printf("iterationsBeforeSwitch = %lu\n", iterationsBeforeSwitch);
+    printf("performanceStateHigh = %lu\n", performanceStateHigh);
+    printf("performanceStateLow = %lu\n", performanceStateLow);
+    printf("sleepInterval = %lu\n", sleepInterval);
+    printf("temperatureThreshold = %lu\n", temperatureThreshold);
 
     // Print the number of GPUs being managed
     printf("Managing %d GPUs...\n", deviceCount);
