@@ -29,27 +29,10 @@ Download the latest version of the executable for your OS from [releases](https:
 
 * CMake
 * CUDA toolkit
-* Wget (only on Linux)
 
-### Linux
-
-```sh
-# Download NVAPI headers
-./nvapi.sh
-
-# Configure
-cmake -B build
-
-# Build
-cmake --build build
-```
-
-### Windows
+### Building
 
 ```sh
-# Download NVAPI headers
-.\nvapi.ps1
-
 # Configure
 cmake -B build
 

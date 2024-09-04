@@ -38,14 +38,6 @@ jobs:
           method: network
           sub-packages: '["cudart", "nvcc", "nvml_dev"]'
 
-      - if: runner.os == 'Linux'
-        name: Install NVAPI headers on Linux
-        run: ./nvapi.sh
-
-      - if: runner.os == 'Windows'
-        name: Install NVAPI headers on Windows
-        run: .\nvapi.ps1
-
       - name: Configure project
         run: >
           cmake
