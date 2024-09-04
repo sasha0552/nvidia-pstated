@@ -5,6 +5,36 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+  #include <windows.h>
+#elif __linux__
+  #include <dlfcn.h>
+#endif
+
+void * library_open(const char * filename) {
+  #ifdef _WIN32
+    return LoadLibrary(filename);
+  #elif __linux__
+    return dlopen(filename, RTLD_LAZY);
+  #endif
+}
+
+void * library_proc(void * handle, const char * symbol) {
+  #ifdef _WIN32
+    return GetProcAddress((HMODULE) handle, symbol);
+  #elif __linux__
+    return dlsym(handle, symbol);
+  #endif
+}
+
+int library_close(void * handle) {
+  #ifdef _WIN32
+    FreeLibrary((HMODULE) handle);
+  #elif __linux__
+    dlclose(handle);
+  #endif
+}
+
 bool parse_ulong(const char *arg, unsigned long *value) {
   // Check if the input or output argument is invalid
   if (arg == NULL || value == NULL) {

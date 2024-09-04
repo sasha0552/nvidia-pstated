@@ -16,7 +16,7 @@
     /* Jump to the specified label */   \
     goto label;                         \
   }                                     \
-} while (0);
+} while (0)
 
 // Macro to check if a condition is false and jump to a label if it is not
 #define ASSERT_FALSE(call, label) do { \
@@ -28,7 +28,7 @@
     /* Jump to the specified label */  \
     goto label;                        \
   }                                    \
-} while (0);
+} while (0)
 
 // Macro to check if there is a next argument
 #define HAS_NEXT_ARG (i + 1 < argc)
@@ -43,9 +43,13 @@
                                 \
   /* Set the pointer to NULL */ \
   ptr = NULL;                   \
-} while (0);
+} while (0)
 
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
+
+void * library_open(const char * filename);
+void * library_proc(void * handle, const char * symbol);
+int library_close(void * handle);
 
 bool parse_ulong(const char *arg, unsigned long *value);
 bool parse_ulong_array(const char *arg, const char *delimiter, const size_t max_count, unsigned long *values, size_t *count);
