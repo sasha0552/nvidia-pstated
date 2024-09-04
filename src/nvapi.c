@@ -2,13 +2,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#ifdef _WIN32
-  #include <windows.h>
-#elif __linux__
-  #include <dlfcn.h>
-#endif
-
 #include "nvapi.h"
+#include "utils.h"
 
 /***** ***** ***** ***** ***** TYPES ***** ***** ***** ***** *****/
 
@@ -65,22 +60,22 @@ NvAPI_Status NvAPI_GetErrorMessage(NvAPI_Status nr, NvAPI_ShortString szDesc) {
 }
 
 NvAPI_Status NvAPI_Initialize() {
-  // Check the platform and load the appropriate NvAPI library
+  // Load the appropriate NvAPI library
   #ifdef _WIN32
     if (!lib) {
-      lib = LoadLibrary("nvapi64.dll");
+      lib = library_open("nvapi64.dll");
     }
 
     if (!lib) {
-      lib = LoadLibrary("nvapi.dll");
+      lib = library_open("nvapi.dll");
     }
   #elif __linux__
     if (!lib) {
-      lib = dlopen("libnvidia-api.so.1", RTLD_LAZY);
+      lib = library_open("libnvidia-api.so.1");
     }
 
     if (!lib) {
-      lib = dlopen("libnvidia-api.so", RTLD_LAZY);
+      lib = library_open("libnvidia-api.so");
     }
   #endif
 
@@ -97,11 +92,7 @@ NvAPI_Status NvAPI_Initialize() {
   nvapi_QueryInterface_t nvapi_QueryInterface;
 
   // Get the address of the nvapi_QueryInterface function from the loaded library
-  #ifdef _WIN32
-    nvapi_QueryInterface = (nvapi_QueryInterface_t) GetProcAddress((HMODULE) lib, "nvapi_QueryInterface");
-  #elif __linux__
-    nvapi_QueryInterface = (nvapi_QueryInterface_t) dlsym(lib, "nvapi_QueryInterface");
-  #endif
+  nvapi_QueryInterface = (nvapi_QueryInterface_t) library_proc(lib, "nvapi_QueryInterface");
 
   // If the function pointer is still null, gathering the address failed
   if (!nvapi_QueryInterface) {
@@ -144,12 +135,8 @@ NvAPI_Status NvAPI_Unload() {
       _NvAPI_Initialize = NULL;
       _NvAPI_Unload = NULL;
 
-      // Free the loaded library based on the platform
-      #ifdef _WIN32
-        FreeLibrary((HMODULE) lib);
-      #elif __linux__
-        dlclose(lib);
-      #endif
+      // Free the loaded library
+      library_close(lib);
     }
   }
 

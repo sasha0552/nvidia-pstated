@@ -18,25 +18,15 @@ jobs:
             c_compiler: cl
 
           - os: ubuntu-latest
-            c_compiler: gcc
+            c_compiler: musl-gcc
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - if: runner.os == 'Linux'
-        name: Install CUDA toolkit on Linux
-        uses: Jimver/cuda-toolkit@v0.2.16
-        with:
-          method: network
-          sub-packages: '["nvcc", "nvml-dev"]'
-
-      - if: runner.os == 'Windows'
-        name: Install CUDA toolkit on Windows
-        uses: Jimver/cuda-toolkit@v0.2.16
-        with:
-          method: network
-          sub-packages: '["cudart", "nvcc", "nvml_dev"]'
+        name: Install musl
+        run: sudo apt-get install --yes musl musl-tools
 
       - name: Configure project
         run: >
