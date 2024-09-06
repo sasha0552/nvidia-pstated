@@ -8,12 +8,23 @@ A daemon that automatically manages the performance states of NVIDIA GPUs.
 
 #### Linux
 
-Make sure you have the proprietary NVIDIA driver and the packages providing `libnvidia-api.so.1` and `libnvidia-ml.so.1` installed.
+Make sure the proprietary NVIDIA driver is installed.
+
+You will need the following libraries:
+
+- `libnvidia-api.so.1`
+- `libnvidia-ml.so.1`
+
+Packages that provide these libraries:
 
 - ArchLinux: `nvidia-utils`
 - Debian: `libnvidia-api1` or `libnvidia-tesla-api1` (depending on the GPU and driver installed)
 
 On Debian derivatives, you can use `apt search libnvidia-api.so.1` and `apt search libnvidia-ml.so.1` to find the package you need.
+
+Note that you MUST run this daemon at the host level, i.e. where the CUDA Driver is available. You can NOT run this daemon in a container.
+
+![nvidia-container-stack](https://cloud.githubusercontent.com/assets/3028125/12213714/5b208976-b632-11e5-8406-38d379ec46aa.png)
 
 #### Windows
 
