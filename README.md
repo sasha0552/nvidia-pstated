@@ -81,3 +81,26 @@ RestartSec=1s
 [Install]
 WantedBy=multi-user.target
 ```
+
+### vGPU manager
+
+If you are using a hypervisor (KVM) with a vGPU manager, you cannot run `nvidia-pstated` in virtual machines. Instead, you can run it at the hypervisor level.
+
+To do this, you need to:
+1. Extract `libnvidia-api.so.1` from your guest driver (in my case `Guest_Drivers/nvidia-linux-grid-535_535.183.06_amd64.deb/data.tar.xz/usr/lib/x86_64-linux-gnu/libnvidia-api.so.1`) to some directory.
+2. Download `nvidia-pstated` to the same directory.
+3. Try running `nvidia-pstated`: `LD_LIBRARY_PATH=. ./nvidia-pstated`.
+   You should get the following:
+   ```sh
+   $ LD_LIBRARY_PATH=. ./nvidia-pstated
+   NvAPI_Initialize(): NVAPI_ERROR
+   ```
+   Check `dmesg`, you should get the following message:
+   ```text
+   NVRM: API mismatch: the client has the version 535.183.06, but
+   NVRM: this kernel module has the version 535.183.04.  Please
+   NVRM: make sure that this kernel module and all NVIDIA driver
+   NVRM: components have the same version.
+   ```
+5. Use `sed -i 's/535.183.06/535.183.04/g' libnvidia-api.so.1` (replace the values with what you got in `dmesg`) to replace the client version in `libnvidia-api.so.1`.
+6. Run `nvidia-pstated`: `LD_LIBRARY_PATH=. ./nvidia-pstated`. Enjoy.
