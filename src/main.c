@@ -94,7 +94,7 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
   }
 
   // Set the GPU to the desired performance state
-  NVAPI_CALL(NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 2), failure);
+  NVAPI_CALL(NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 0), failure);
 
   // Reset the iteration counter
   state->iterations = 0;
