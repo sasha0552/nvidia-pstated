@@ -8,26 +8,32 @@ A daemon that automatically manages the performance states of NVIDIA GPUs.
 flowchart TD
     A(Start) --> B
     subgraph For each GPU
-    B(Check temperature) -->|Below threshold| D
-    B(Check temperature) -->|Above threshold| C
-    C(Enter low PState) --> M
+    B("Check temperature[1]") -->|Below threshold| D
+    B("Check temperature[1]") -->|Above threshold| C
+    C("Enter low PState[2]") --> M
     D(Check utilization) -->|Is 0%| E
     D(Check utilization) -->|Is not 0%| J
     E(Check current PState) -->|High| F
     E(Check current PState) -->|Low| I
-    F(Iterations counter exceeded threshold) -->|Yes| G
-    F(Iterations counter exceeded threshold) -->|No| H
-    G(Enter low PState) --> H
+    F("Iterations counter exceeded threshold[3]") -->|Yes| G
+    F("Iterations counter exceeded threshold[3]") -->|No| H
+    G("Enter low PState[2]") --> H
     H(Increment iterations counter) --> M
     I(Do nothing) --> M
     J(Check current PState) -->|High| K
     J(Check current PState) -->|Low| L
-    K(Reset iteration counter) --> M
-    L(Enter high PState) --> M
+    K(Reset iterations counter) --> M
+    L("Enter high PState[4]") --> M
     end
     M(End) --> N
-    N(Sleep) --> A
+    N("Sleep[5]") --> A
 ```
+
+1 - Threshold is controlled by option `--temperature-threshold` (default: `80` degrees C)  
+2 - Value is controlled by option `--performance-state-low` (default: `8`)  
+3 - Threshold is controlled by option  `--iterations-before-switch` (default: `30` iterations)  
+4 - Value is controlled by option `--performance-state-high` (default: `16`)  
+5 - Value is controlled by option `--sleep-interval` (default: `100` milliseconds)  
 
 ## Installation
 
