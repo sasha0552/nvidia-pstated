@@ -2,6 +2,33 @@
 
 A daemon that automatically manages the performance states of NVIDIA GPUs.
 
+## How it works
+
+```mermaid
+flowchart TD
+    A(Start) --> B
+    subgraph For each GPU
+    B(Check temperature) -->|Below threshold| D
+    B(Check temperature) -->|Above threshold| C
+    C(Enter low PState) --> M
+    D(Check utilization) -->|Is 0%| E
+    D(Check utilization) -->|Is not 0%| J
+    E(Check current PState) -->|High| F
+    E(Check current PState) -->|Low| I
+    F(Iterations counter exceeded threshold) -->|Yes| G
+    F(Iterations counter exceeded threshold) -->|No| H
+    G(Enter low PState) --> H
+    H(Increment iterations counter) --> M
+    I(Do nothing) --> M
+    J(Check current PState) -->|High| K
+    J(Check current PState) -->|Low| L
+    K(Reset iteration counter) --> M
+    L(Enter high PState) --> M
+    end
+    M(End) --> N
+    N(Sleep) --> A
+```
+
 ## Installation
 
 ### Prerequirements
