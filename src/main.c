@@ -226,27 +226,31 @@ int main(int argc, char *argv[]) {
 
   /***** SORT NVAPI HANDLES */
   {
-    // Array to hold NVML device serial numbers, each with up to 32 characters
-    char nvmlSerials[NVAPI_MAX_PHYSICAL_GPUS][32];
+    // Array to hold NVML device identifiers
+    NvU32 nvmlIdentifiers[NVAPI_MAX_PHYSICAL_GPUS];
 
-    // Array to hold NVAPI device serial numbers, each with up to 32 characters
-    char nvapiSerials[NVAPI_MAX_PHYSICAL_GPUS][32];
+    // Array to hold NVAPI device identifiers
+    NvU32 nvapiIdentifiers[NVAPI_MAX_PHYSICAL_GPUS];
 
-    // Step 1: Loop through each device to retrieve and store NVML and NVAPI serials
+    // Step 1: Loop through each device to retrieve and store NVML and NVAPI identifiers
     for (unsigned int i = 0; i < deviceCount; i++) {
-      // Get serial number for NVML device and store in nvmlSerials array
-      NVML_CALL(nvmlDeviceGetSerial(nvmlDevices[i], nvmlSerials[i], 32), errored);
+      // Initialize struct to hold PCI info
+      nvmlPciInfo_t nvmlPciInfo;
 
-      // Prepare NVAPI board info struct
-      NV_BOARD_INFO boardInfo = {
-        .version = NV_BOARD_INFO_VER,
-      };
+      // Get PCI info
+      NVML_CALL(nvmlDeviceGetPciInfo(nvmlDevices[i], &nvmlPciInfo), errored);
 
-      // Get board info for NVAPI device
-      NVAPI_CALL(NvAPI_GPU_GetBoardInfo(nvapiDevices[i], &boardInfo), errored);
+      // Store bus id in nvmlIdentifiers array
+      nvmlIdentifiers[i] = nvmlPciInfo.bus;
 
-      // Copy the serial number from board info to the nvapiSerials array
-      strncpy(nvapiSerials[i], boardInfo.BoardNum, 32);
+      // Variable to hold bus id
+      NvU32 nvapiBusId;
+
+      // Get bus id
+      NVAPI_CALL(NvAPI_GPU_GetBusId(nvapiDevices[i], &nvapiBusId), errored);
+
+      // Store in nvapiIdentifiers array
+      nvapiIdentifiers[i] = nvapiBusId;
     }
 
     // Array to store NVAPI device handles in sorted order
@@ -255,9 +259,9 @@ int main(int argc, char *argv[]) {
     // Step 2: Match and order NVAPI devices based on serial numbers
     for (unsigned int i = 0; i < deviceCount; i++) {
       for (unsigned int j = 0; j < deviceCount; j++) {
-        // Compare NVML and NVAPI serials
-        if (strcmp(nvmlSerials[i], nvapiSerials[j]) == 0) {
-          // Set sorted handle
+        // Compare NVML and NVAPI identifiers
+        if (nvmlIdentifiers[i] == nvapiIdentifiers[j]) {
+          // Store matched device handle in sorted array
           sortedNvapiDevices[i] = nvapiDevices[j];
 
           // Exit the inner loop

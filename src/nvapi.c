@@ -15,7 +15,7 @@
 typedef void * (*nvapi_QueryInterface_t)(int);
 
 typedef NvAPI_Status (*NvAPI_EnumPhysicalGPUs_t)(NvPhysicalGpuHandle[NVAPI_MAX_PHYSICAL_GPUS], NvU32 *);
-typedef NvAPI_Status (*NvAPI_GPU_GetBoardInfo_t)(NvPhysicalGpuHandle, NV_BOARD_INFO *);
+typedef NvAPI_Status (*NvAPI_GPU_GetBusId_t)(NvPhysicalGpuHandle, NvU32 *);
 typedef NvAPI_Status (*NvAPI_GPU_SetForcePstate_t)(NvPhysicalGpuHandle, NvU32, NvU32);
 typedef NvAPI_Status (*NvAPI_GetErrorMessage_t)(NvAPI_Status, NvAPI_ShortString);
 typedef NvAPI_Status (*NvAPI_Initialize_t)();
@@ -26,7 +26,7 @@ typedef NvAPI_Status (*NvAPI_Unload_t)();
 static void * lib;
 
 static NvAPI_EnumPhysicalGPUs_t   _NvAPI_EnumPhysicalGPUs;
-static NvAPI_GPU_GetBoardInfo_t   _NvAPI_GPU_GetBoardInfo;
+static NvAPI_GPU_GetBusId_t       _NvAPI_GPU_GetBusId;
 static NvAPI_GPU_SetForcePstate_t _NvAPI_GPU_SetForcePstate;
 static NvAPI_GetErrorMessage_t    _NvAPI_GetErrorMessage;
 static NvAPI_Initialize_t         _NvAPI_Initialize;
@@ -50,12 +50,12 @@ NvAPI_Status NvAPI_EnumPhysicalGPUs(NvPhysicalGpuHandle nvGPUHandle[NVAPI_MAX_PH
   return _NvAPI_EnumPhysicalGPUs(nvGPUHandle, pGpuCount);
 }
 
-NvAPI_Status NvAPI_GPU_GetBoardInfo(NvPhysicalGpuHandle hPhysicalGpu, NV_BOARD_INFO * pBoardInfo) {
+NvAPI_Status NvAPI_GPU_GetBusId(NvPhysicalGpuHandle hPhysicalGpu, NvU32 * pBusId) {
   // Ensure the function pointer is valid
-  NVAPI_POINTER(_NvAPI_GPU_GetBoardInfo);
+  NVAPI_POINTER(_NvAPI_GPU_GetBusId);
 
   // Invoke the function using the provided parameters
-  return _NvAPI_GPU_GetBoardInfo(hPhysicalGpu, pBoardInfo);
+  return _NvAPI_GPU_GetBusId(hPhysicalGpu, pBusId);
 }
 
 NvAPI_Status NvAPI_GPU_SetForcePstate(NvPhysicalGpuHandle hPhysicalGpu, NvU32 pstateId, NvU32 fallbackState) {
@@ -124,7 +124,7 @@ NvAPI_Status NvAPI_Initialize() {
 
   // Retrieve the addresses of specific NvAPI functions using nvapi_QueryInterface
   _NvAPI_EnumPhysicalGPUs = (NvAPI_EnumPhysicalGPUs_t) nvapi_QueryInterface(0xe5ac921f);
-  _NvAPI_GPU_GetBoardInfo = (NvAPI_GPU_GetBoardInfo_t) nvapi_QueryInterface(0x22d54523);
+  _NvAPI_GPU_GetBusId = (NvAPI_GPU_GetBusId_t) nvapi_QueryInterface(0x1be0b8e5);
   _NvAPI_GPU_SetForcePstate = (NvAPI_GPU_SetForcePstate_t) nvapi_QueryInterface(0x025bfb10);
   _NvAPI_GetErrorMessage = (NvAPI_GetErrorMessage_t) nvapi_QueryInterface(0x6c2d048c);
   _NvAPI_Initialize = (NvAPI_Initialize_t) nvapi_QueryInterface(0x0150e828);
