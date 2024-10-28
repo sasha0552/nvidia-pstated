@@ -243,6 +243,12 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      // If array is empty
+      if (idsCount == 0) {
+        // Print "N/A"
+        printf("N/A");
+      }
+
       // Print the count of elements in the array and newline character
       printf(" (%zu)\n", idsCount);
     }
