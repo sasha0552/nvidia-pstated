@@ -224,6 +224,52 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  /***** SORT NVAPI HANDLES */
+  {
+    // Array to hold NVML device serial numbers, each with up to 32 characters
+    char nvmlSerials[NVAPI_MAX_PHYSICAL_GPUS][32];
+
+    // Array to hold NVAPI device serial numbers, each with up to 32 characters
+    char nvapiSerials[NVAPI_MAX_PHYSICAL_GPUS][32];
+
+    // Step 1: Loop through each device to retrieve and store NVML and NVAPI serials
+    for (unsigned int i = 0; i < deviceCount; i++) {
+      // Get serial number for NVML device and store in nvmlSerials array
+      NVML_CALL(nvmlDeviceGetSerial(nvmlDevices[i], nvmlSerials[i], 32), errored);
+
+      // Prepare NVAPI board info struct
+      NV_BOARD_INFO boardInfo = {
+        .version = NV_BOARD_INFO_VER,
+      };
+
+      // Get board info for NVAPI device
+      NVAPI_CALL(NvAPI_GPU_GetBoardInfo(nvapiDevices[i], &boardInfo), errored);
+
+      // Copy the serial number from board info to the nvapiSerials array
+      strncpy(nvapiSerials[i], boardInfo.BoardNum, 32);
+    }
+
+    // Array to store NVAPI device handles in sorted order
+    NvPhysicalGpuHandle sortedNvapiDevices[NVAPI_MAX_PHYSICAL_GPUS];
+
+    // Step 2: Match and order NVAPI devices based on serial numbers
+    for (unsigned int i = 0; i < deviceCount; i++) {
+      for (unsigned int j = 0; j < deviceCount; j++) {
+        // Compare NVML and NVAPI serials
+        if (strcmp(nvmlSerials[i], nvapiSerials[j]) == 0) {
+          // Set sorted handle
+          sortedNvapiDevices[i] = nvapiDevices[j];
+
+          // Exit the inner loop
+          break;
+        }
+      }
+    }
+
+    // Step 3: Copy sorted handles back to original array
+    memcpy(nvapiDevices, sortedNvapiDevices, sizeof(sortedNvapiDevices));
+  }
+
   /***** INIT *****/
   {
     // Print ids
