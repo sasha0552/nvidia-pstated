@@ -115,6 +115,20 @@ RestartSec=1s
 WantedBy=multi-user.target
 ```
 
+### Windows service
+
+Create a new service using `sc.exe`:
+
+```sh
+sc.exe create nvidia-pstated start=auto binPath="C:\path\to\nvidia-pstated.exe --service"
+```
+
+Then start the service:
+
+net start nvidia-pstated
+
+```sh
+
 ### vGPU manager
 
 If you are using a hypervisor (KVM) with a vGPU manager, you cannot run `nvidia-pstated` in virtual machines. Instead, you can run it at the hypervisor level.
