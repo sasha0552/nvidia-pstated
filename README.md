@@ -125,9 +125,9 @@ sc.exe create nvidia-pstated start=auto binPath="C:\path\to\nvidia-pstated.exe -
 
 Then start the service:
 
-net start nvidia-pstated
-
 ```sh
+net start nvidia-pstated
+```
 
 ### vGPU manager
 
