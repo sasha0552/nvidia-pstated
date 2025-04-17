@@ -6,6 +6,10 @@
 
 #ifdef _WIN32
   #include <windows.h>
+  #define SERVICE_NAME "nvidia-pstated"
+static SERVICE_STATUS serviceStatus;
+static SERVICE_STATUS_HANDLE serviceStatusHandle = NULL;
+static HANDLE serviceStopEvent = NULL;
 #elif __linux__
   #include <unistd.h>
 #endif
@@ -113,7 +117,69 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
   return false;
 }
 
-int main(int argc, char *argv[]) {
+// Forward declaration for service logic
+#ifdef _WIN32
+static void WINAPI ServiceMain(DWORD argc, LPTSTR * argv);
+static void WINAPI ServiceCtrlHandler(DWORD ctrlCode);
+#endif
+
+// Main daemon logic extracted to a function
+static int run_daemon(int argc, char * argv[]);
+
+#ifdef _WIN32
+static void WINAPI ServiceCtrlHandler(DWORD ctrlCode) {
+  switch (ctrlCode) {
+  case SERVICE_CONTROL_STOP:
+  case SERVICE_CONTROL_SHUTDOWN:
+    if (serviceStatusHandle) {
+      serviceStatus.dwCurrentState = SERVICE_STOP_PENDING;
+      SetServiceStatus(serviceStatusHandle, &serviceStatus);
+    }
+    shouldRun = false;
+    if (serviceStopEvent) {
+      SetEvent(serviceStopEvent);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+static void WINAPI ServiceMain(DWORD argc, LPTSTR * argv) {
+  serviceStatusHandle = RegisterServiceCtrlHandler(SERVICE_NAME, ServiceCtrlHandler);
+  if (!serviceStatusHandle)
+    return;
+
+  serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+  serviceStatus.dwCurrentState = SERVICE_START_PENDING;
+  serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+  serviceStatus.dwWin32ExitCode = 0;
+  serviceStatus.dwServiceSpecificExitCode = 0;
+  serviceStatus.dwCheckPoint = 0;
+  serviceStatus.dwWaitHint = 0;
+  SetServiceStatus(serviceStatusHandle, &serviceStatus);
+
+  serviceStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if (!serviceStopEvent) {
+    serviceStatus.dwCurrentState = SERVICE_STOPPED;
+    SetServiceStatus(serviceStatusHandle, &serviceStatus);
+    return;
+  }
+
+  serviceStatus.dwCurrentState = SERVICE_RUNNING;
+  SetServiceStatus(serviceStatusHandle, &serviceStatus);
+
+  // Call the main daemon logic
+  run_daemon(__argc, __argv);
+
+  serviceStatus.dwCurrentState = SERVICE_STOPPED;
+  SetServiceStatus(serviceStatusHandle, &serviceStatus);
+  CloseHandle(serviceStopEvent);
+}
+#endif
+
+// Main daemon logic extracted from main()
+static int run_daemon(int argc, char * argv[]) {
   /***** OPTIONS *****/
   unsigned long ids[NVAPI_MAX_PHYSICAL_GPUS] = { 0 };
   size_t idsCount = 0;
@@ -179,7 +245,9 @@ int main(int argc, char *argv[]) {
       printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_LOW);
       printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %u)\n", SLEEP_INTERVAL);
       printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %u)\n", TEMPERATURE_THRESHOLD);
-
+#ifdef _WIN32
+      printf("  -s, --service                             Run as a Windows service\n");
+#endif
       // Jump to the error handling code
       goto errored;
     }
@@ -507,4 +575,20 @@ int main(int argc, char *argv[]) {
   {
     return errorOccurred;
   }
+}
+
+int main(int argc, char * argv[]) {
+#ifdef _WIN32
+  // Check for --service flag
+  for (unsigned int i = 1; i < argc; i++) {
+    if ((IS_OPTION("-s") || IS_OPTION("--service")) && HAS_NEXT_ARG) {
+      // Run as a Windows service
+      SERVICE_TABLE_ENTRY serviceTable[] = { { SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain }, { NULL, NULL } };
+      StartServiceCtrlDispatcher(serviceTable);
+      return 0;
+    }
+  }
+#endif
+  // Default: run as console app
+  return run_daemon(argc, argv);
 }
