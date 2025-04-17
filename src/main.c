@@ -228,6 +228,12 @@ static int run_daemon(int argc, char * argv[]) {
         // Parse the integer option and store it in temperatureThreshold
         ASSERT_TRUE(parse_ulong(argv[++i], &temperatureThreshold), usage);
       }
+
+      // Check if the option is "-h" or "--help"
+      if (IS_OPTION("-h") || IS_OPTION("--help") && HAS_NEXT_ARG) {
+        // Set the flag to show usage instructions
+        goto usage;
+      }
     }
 
     // Display usage instructions to the user
