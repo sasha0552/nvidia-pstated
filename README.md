@@ -117,10 +117,12 @@ WantedBy=multi-user.target
 
 ### Windows service
 
-Create a new service using `sc.exe`:
+Place `nvidia-pstated.exe` in the desired location (for example, `C:\Program Files\nvidia-pstated\nvidia-pstated.exe`).
+
+Create a new service using `sc.exe` in the elevated command prompt:
 
 ```sh
-sc.exe create nvidia-pstated start=auto binPath="C:\path\to\nvidia-pstated.exe --service"
+sc.exe create nvidia-pstated start=auto binPath="C:\Program Files\nvidia-pstated\nvidia-pstated.exe --service"
 ```
 
 Then start the service:
