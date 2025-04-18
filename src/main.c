@@ -113,7 +113,7 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
   return false;
 }
 
-int main(int argc, char *argv[]) {
+static int run(int argc, char * argv[]) {
   /***** OPTIONS *****/
   unsigned long ids[NVAPI_MAX_PHYSICAL_GPUS] = { 0 };
   size_t idsCount = 0;
@@ -177,6 +177,11 @@ int main(int argc, char *argv[]) {
       printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %u)\n", ITERATIONS_BEFORE_SWITCH);
       printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_HIGH);
       printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_LOW);
+
+      #ifdef _WIN32
+        printf("  -s, --service                             Run as a Windows service\n");
+      #endif
+
       printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %u)\n", SLEEP_INTERVAL);
       printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %u)\n", TEMPERATURE_THRESHOLD);
 
@@ -507,4 +512,89 @@ int main(int argc, char *argv[]) {
   {
     return errorOccurred;
   }
+}
+
+#ifdef _WIN32
+  // Service name
+  #define SERVICE_NAME "nvidia-pstated"
+
+  // Service status handle
+  static SERVICE_STATUS_HANDLE serviceStatusHandle;
+
+  // Service status structure
+  static SERVICE_STATUS serviceStatus;
+
+  static void WINAPI ServiceCtrlHandler(DWORD ctrlCode) {
+    switch (ctrlCode) {
+      case SERVICE_CONTROL_SHUTDOWN:
+      case SERVICE_CONTROL_STOP: {
+        // Set the service status to stop pending
+        serviceStatus.dwCurrentState = SERVICE_STOP_PENDING;
+
+        // Set the global flag to false to indicate the program should stop running
+        shouldRun = false;
+      }
+    }
+
+    // Update the service status
+    SetServiceStatus(serviceStatusHandle, &serviceStatus);
+  }
+
+  static void WINAPI ServiceMain(DWORD argc, LPTSTR * argv) {
+    // Initialize the service status handle
+    serviceStatusHandle = RegisterServiceCtrlHandler(SERVICE_NAME, ServiceCtrlHandler);
+
+    // Set the service type
+    serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+
+    // Set the service current state
+    serviceStatus.dwCurrentState = SERVICE_RUNNING;
+
+    // Set the service's accepted controls
+    serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_SHUTDOWN | SERVICE_ACCEPT_STOP;
+
+    // Update the service status
+    SetServiceStatus(serviceStatusHandle, &serviceStatus);
+
+    // Run the daemon
+    int ret = run(__argc, __argv);
+
+    // If the daemon returns an error, set the exit code
+    if (ret != 0) {
+      // Set the service generic exit code
+      serviceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+
+      // Set the service specific exit code
+      serviceStatus.dwServiceSpecificExitCode = ret;
+    }
+
+    // Set the service status to stopped
+    serviceStatus.dwCurrentState = SERVICE_STOPPED;
+
+    // Update the service status
+    SetServiceStatus(serviceStatusHandle, &serviceStatus);
+  }
+#endif
+
+int main(int argc, char * argv[]) {
+  // If on Windows
+  #ifdef _WIN32
+    // Iterate through command-line arguments
+    for (unsigned int i = 1; i < argc; i++) {
+      // Check if the option is "-s" or "--service"
+      if ((IS_OPTION("-s") || IS_OPTION("--service"))) {
+        // Create a service table entry
+        SERVICE_TABLE_ENTRY serviceTableEntry[] = { { SERVICE_NAME, ServiceMain }, { NULL, NULL } };
+
+        // Start the service control dispatcher
+        StartServiceCtrlDispatcher(serviceTableEntry);
+
+        // Return 0 to indicate success
+        return 0;
+      }
+    }
+  #endif
+
+  // Run the daemon
+  return run(argc, argv);
 }

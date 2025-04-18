@@ -26,14 +26,14 @@ jobs:
 
       - if: runner.os == 'Linux'
         name: Install CUDA toolkit on Linux
-        uses: Jimver/cuda-toolkit@v0.2.16
+        uses: Jimver/cuda-toolkit@v0.2.23
         with:
           method: network
           sub-packages: '["nvcc", "nvml-dev"]'
 
       - if: runner.os == 'Windows'
         name: Install CUDA toolkit on Windows
-        uses: Jimver/cuda-toolkit@v0.2.16
+        uses: Jimver/cuda-toolkit@v0.2.23
         with:
           method: network
           sub-packages: '["cudart", "nvcc", "nvml_dev"]'
