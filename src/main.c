@@ -133,6 +133,12 @@ static int run(int argc, char * argv[]) {
         ASSERT_TRUE(parse_ulong_array(argv[++i], ",", NVAPI_MAX_PHYSICAL_GPUS, ids, &idsCount), usage);
       }
 
+      // Check if the option is "-h" or "--help"
+      if ((IS_OPTION("-h") || IS_OPTION("--help"))) {
+        // Print usage instructions
+        goto usage;
+      }
+
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterationsBeforeSwitch
@@ -149,6 +155,12 @@ static int run(int argc, char * argv[]) {
       if ((IS_OPTION("-psl") || IS_OPTION("--performance-state-low")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in performanceStateLow
         ASSERT_TRUE(parse_ulong(argv[++i], &performanceStateLow), usage);
+      }
+
+      // Check if the option is "-s" or "--service"
+      if ((IS_OPTION("-s") || IS_OPTION("--service"))) {
+        // Skip option
+        continue;
       }
 
       // Check if the option is "-si" or "--sleep-interval" and if there is a next argument
