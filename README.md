@@ -137,6 +137,7 @@ DynamicUser=yes
 ExecStart=/usr/local/bin/nvidia-pstated
 Restart=on-failure
 RestartSec=1s
+StartLimitBurst=0
 
 [Install]
 WantedBy=multi-user.target
@@ -180,3 +181,39 @@ To do this, you need to:
    ```
 5. Use `sed -i 's/535.183.06/535.183.04/g' libnvidia-api.so.1` (replace the values with what you got in `dmesg`) to replace the client version in `libnvidia-api.so.1`.
 6. Run `nvidia-pstated`: `LD_LIBRARY_PATH=. ./nvidia-pstated`. Enjoy.
+
+### Crash Recovery
+
+If the daemon crashes unexpectedly, GPU clocks might remain at low frequencies. To manually reset all GPUs to their default clock settings:
+
+#### For GPUs using clock control (V100, etc):
+
+```sh
+# Linux
+nvidia-smi -rac
+
+# Windows
+nvidia-smi -rac
+```
+
+#### For GPUs using P-states:
+
+```sh
+# Linux/Windows - Reset to auto P-state mode (P0)
+nvidia-smi -rgc
+```
+
+For systemd services, you can improve crash handling by adding the following to ensure automatic restart:
+
+```text
+[Service]
+RestartSec=1s
+StartLimitInterval=0
+StartLimitBurst=0
+```
+
+For Windows services, set the recovery actions in the service properties or via command:
+
+```sh
+sc.exe failure nvidia-pstated reset= 0 actions= restart/60000/restart/60000/restart/60000
+```
