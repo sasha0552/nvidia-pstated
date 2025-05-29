@@ -31,6 +31,15 @@
 // Temperature threshold (in degrees C)
 #define TEMPERATURE_THRESHOLD 80
 
+// Default clock frequencies for fallback mode (MHz)
+#define CLOCK_FREQ_MEM_HIGH 0    // 0 means auto/maximum
+#define CLOCK_FREQ_GPU_HIGH 0    // 0 means auto/maximum
+#define CLOCK_FREQ_MEM_LOW 0     // Will be set to lowest supported
+#define CLOCK_FREQ_GPU_LOW 0     // Will be set to lowest supported
+
+// Flag to enable clock control fallback mode
+#define ENABLE_CLOCK_FALLBACK true
+
 /***** ***** ***** ***** ***** STRUCTURES ***** ***** ***** ***** *****/
 
 // Structure to hold the state of each GPU
@@ -43,6 +52,17 @@ typedef struct {
 
   // GPU management state
   bool managed;
+  
+  // Flag to indicate if pstate control failed and we're using clock control
+  bool usingClockControl;
+  
+  // Lowest supported clock frequencies
+  unsigned int minMemClock;
+  unsigned int minGpuClock;
+
+  // Current clock frequencies
+  unsigned int currentMemClock;
+  unsigned int currentGpuClock;
 } gpuState;
 
 /***** ***** ***** ***** ***** VARIABLES ***** ***** ***** ***** *****/
@@ -73,6 +93,9 @@ static nvmlUtilization_t utilization;
 // Variable to store GPU states
 static gpuState gpuStates[NVAPI_MAX_PHYSICAL_GPUS];
 
+// Flag to track if fallback to clock control is enabled
+static bool enableClockFallback = ENABLE_CLOCK_FALLBACK;
+
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
 static void handle_exit(int signal) {
@@ -83,7 +106,149 @@ static void handle_exit(int signal) {
   }
 }
 
-static bool enter_pstate(unsigned int i, unsigned int pstateId) {
+static bool get_supported_clocks(unsigned int i) {
+  // Get the current state of the GPU
+  gpuState * state = &gpuStates[i];
+  
+  // If GPU is unmanaged, we don't need to get supported clocks
+  if (!state->managed) {
+    return true;
+  }
+
+  // Get the lowest supported clocks
+  unsigned int count = 0;
+  nvmlReturn_t result;
+
+  // Get the number of supported memory clocks
+  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count);
+  if (result != NVML_SUCCESS) {
+    fprintf(stderr, "Unable to get number of supported memory clocks for GPU %u: %s\n", 
+            i, nvmlErrorString(result));
+    return false;
+  }
+
+  if (count == 0) {
+    fprintf(stderr, "No supported memory clocks found for GPU %u\n", i);
+    return false;
+  }
+
+  // Allocate memory for the clocks
+  unsigned int *memClocks = malloc(sizeof(unsigned int) * count);
+  if (memClocks == NULL) {
+    fprintf(stderr, "Memory allocation failed for memory clocks array\n");
+    return false;
+  }
+
+  // Get the supported memory clocks
+  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count, memClocks);
+  if (result != NVML_SUCCESS) {
+    fprintf(stderr, "Unable to get supported memory clocks for GPU %u: %s\n", 
+            i, nvmlErrorString(result));
+    free(memClocks);
+    return false;
+  }
+
+  // Find the lowest memory clock
+  unsigned int lowestMemClock = memClocks[0];
+  for (unsigned int j = 1; j < count; j++) {
+    if (memClocks[j] < lowestMemClock) {
+      lowestMemClock = memClocks[j];
+    }
+  }
+  
+  state->minMemClock = lowestMemClock;
+  
+  // Now get the lowest GPU clock for this memory clock
+  unsigned int gpuClockCount = 0;
+  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount);
+  if (result != NVML_SUCCESS) {
+    fprintf(stderr, "Unable to get number of supported GPU clocks for GPU %u: %s\n", 
+            i, nvmlErrorString(result));
+    free(memClocks);
+    return false;
+  }
+  
+  if (gpuClockCount == 0) {
+    fprintf(stderr, "No supported GPU clocks found for GPU %u with memory clock %u MHz\n", 
+            i, lowestMemClock);
+    free(memClocks);
+    return false;
+  }
+  
+  // Allocate memory for the clocks
+  unsigned int *gpuClocks = malloc(sizeof(unsigned int) * gpuClockCount);
+  if (gpuClocks == NULL) {
+    fprintf(stderr, "Memory allocation failed for GPU clocks array\n");
+    free(memClocks);
+    return false;
+  }
+  
+  // Get the supported GPU clocks
+  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount, gpuClocks);
+  if (result != NVML_SUCCESS) {
+    fprintf(stderr, "Unable to get supported GPU clocks for GPU %u: %s\n", 
+            i, nvmlErrorString(result));
+    free(memClocks);
+    free(gpuClocks);
+    return false;
+  }
+  
+  // Find the lowest GPU clock
+  unsigned int lowestGpuClock = gpuClocks[0];
+  for (unsigned int j = 1; j < gpuClockCount; j++) {
+    if (gpuClocks[j] < lowestGpuClock) {
+      lowestGpuClock = gpuClocks[j];
+    }
+  }
+  
+  state->minGpuClock = lowestGpuClock;
+  
+  printf("GPU %u lowest clocks: Memory %u MHz, GPU %u MHz\n", i, lowestMemClock, lowestGpuClock);
+  
+  // Free allocated memory
+  free(memClocks);
+  free(gpuClocks);
+  
+  return true;
+}
+
+static bool set_clocks(unsigned int i, bool highPerformance, unsigned long memFreqHigh, unsigned long gpuFreqHigh, unsigned long memFreqLow, unsigned long gpuFreqLow) {
+  // Get the current state of the GPU
+  gpuState * state = &gpuStates[i];
+  
+  // If GPU is unmanaged, we don't need to set clocks
+  if (!state->managed) {
+    return true;
+  }
+  
+  unsigned int memClock, gpuClock;
+  if (highPerformance) {
+    // Use high performance clocks or auto
+    memClock = memFreqHigh > 0 ? memFreqHigh : 0;
+    gpuClock = gpuFreqHigh > 0 ? gpuFreqHigh : 0;
+  } else {
+    // Use low performance clocks or the lowest available
+    memClock = memFreqLow > 0 ? memFreqLow : state->minMemClock;
+    gpuClock = gpuFreqLow > 0 ? gpuFreqLow : state->minGpuClock;
+  }
+  
+  // Set memory and GPU clocks
+  nvmlReturn_t result = nvmlDeviceSetApplicationsClocks(nvmlDevices[i], memClock, gpuClock);
+  if (result != NVML_SUCCESS) {
+    fprintf(stderr, "Unable to set clocks for GPU %u to Memory: %u MHz, GPU: %u MHz: %s\n", 
+            i, memClock, gpuClock, nvmlErrorString(result));
+    return false;
+  }
+  
+  // Update current clock values
+  state->currentMemClock = memClock;
+  state->currentGpuClock = gpuClock;
+  
+  printf("GPU %u clocks set to Memory: %u MHz, GPU: %u MHz\n", i, memClock, gpuClock);
+  return true;
+}
+
+static bool enter_pstate(unsigned int i, unsigned int pstateId, unsigned long memFreqHigh, unsigned long gpuFreqHigh, unsigned long memFreqLow, unsigned long gpuFreqLow) {
   // Get the current state of the GPU
   gpuState * state = &gpuStates[i];
 
@@ -92,9 +257,55 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
     // Return true to indicate success
     return true;
   }
+  
+  // If we're already using clock control
+  if (state->usingClockControl) {
+    // Use clock control instead of pstate
+    bool isHighPerformance = (pstateId == PERFORMANCE_STATE_HIGH);
+    if (!set_clocks(i, isHighPerformance, memFreqHigh, gpuFreqHigh, memFreqLow, gpuFreqLow)) {
+      return false;
+    }
+    
+    // Reset the iteration counter
+    state->iterations = 0;
+    
+    // Update the GPU state with the new performance state
+    state->pstateId = pstateId;
+    
+    return true;
+  }
 
-  // Set the GPU to the desired performance state
-  NVAPI_CALL(NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 0), failure);
+  // Try to set the GPU to the desired performance state using NVAPI
+  NvAPI_Status status = NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 0);
+  if (status != NVAPI_OK) {
+    // If fallback to clock control is enabled and this is the first failure
+    if (enableClockFallback) {
+      fprintf(stderr, "Failed to set pstate for GPU %u, trying to use clock control instead\n", i);
+      
+      // Get supported clocks
+      if (!get_supported_clocks(i)) {
+        return false;
+      }
+      
+      // Mark that we're using clock control for this GPU
+      state->usingClockControl = true;
+      
+      // Use clock control instead
+      bool isHighPerformance = (pstateId == PERFORMANCE_STATE_HIGH);
+      if (!set_clocks(i, isHighPerformance, memFreqHigh, gpuFreqHigh, memFreqLow, gpuFreqLow)) {
+        return false;
+      }
+    } else {
+      // Get error message
+      NvAPI_ShortString error;
+      if (NvAPI_GetErrorMessage(status, error) != NVAPI_OK) {
+        strcpy(error, "<NvAPI_GetErrorMessage() call failed>");
+      }
+      
+      fprintf(stderr, "NvAPI_GPU_SetForcePstate(nvapiDevices[%u], %u, 0): %s\n", i, pstateId, error);
+      return false;
+    }
+  }
 
   // Reset the iteration counter
   state->iterations = 0;
@@ -107,10 +318,6 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
 
   // Return true to indicate success
   return true;
-
-  failure:
-  // Return false to indicate failure
-  return false;
 }
 
 static int run(int argc, char * argv[]) {
@@ -122,6 +329,11 @@ static int run(int argc, char * argv[]) {
   unsigned long performanceStateLow = PERFORMANCE_STATE_LOW;
   unsigned long sleepInterval = SLEEP_INTERVAL;
   unsigned long temperatureThreshold = TEMPERATURE_THRESHOLD;
+  unsigned long clockFreqMemHigh = CLOCK_FREQ_MEM_HIGH;
+  unsigned long clockFreqGpuHigh = CLOCK_FREQ_GPU_HIGH;
+  unsigned long clockFreqMemLow = CLOCK_FREQ_MEM_LOW;
+  unsigned long clockFreqGpuLow = CLOCK_FREQ_GPU_LOW;
+  enableClockFallback = ENABLE_CLOCK_FALLBACK;
 
   /***** OPTION PARSING *****/
   {
@@ -156,6 +368,36 @@ static int run(int argc, char * argv[]) {
         // Parse the integer option and store it in performanceStateLow
         ASSERT_TRUE(parse_ulong(argv[++i], &performanceStateLow), usage);
       }
+      
+      // Check if the option is "-cmh" or "--clock-mem-high" and if there is a next argument
+      if ((IS_OPTION("-cmh") || IS_OPTION("--clock-mem-high")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in clockFreqMemHigh
+        ASSERT_TRUE(parse_ulong(argv[++i], &clockFreqMemHigh), usage);
+      }
+      
+      // Check if the option is "-cgh" or "--clock-gpu-high" and if there is a next argument
+      if ((IS_OPTION("-cgh") || IS_OPTION("--clock-gpu-high")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in clockFreqGpuHigh
+        ASSERT_TRUE(parse_ulong(argv[++i], &clockFreqGpuHigh), usage);
+      }
+      
+      // Check if the option is "-cml" or "--clock-mem-low" and if there is a next argument
+      if ((IS_OPTION("-cml") || IS_OPTION("--clock-mem-low")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in clockFreqMemLow
+        ASSERT_TRUE(parse_ulong(argv[++i], &clockFreqMemLow), usage);
+      }
+      
+      // Check if the option is "-cgl" or "--clock-gpu-low" and if there is a next argument
+      if ((IS_OPTION("-cgl") || IS_OPTION("--clock-gpu-low")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in clockFreqGpuLow
+        ASSERT_TRUE(parse_ulong(argv[++i], &clockFreqGpuLow), usage);
+      }
+      
+      // Check if the option is "-nfc" or "--no-fallback-clocks"
+      if ((IS_OPTION("-nfc") || IS_OPTION("--no-fallback-clocks"))) {
+        // Disable clock fallback mode
+        enableClockFallback = false;
+      }
 
       // Check if the option is "-s" or "--service"
       if ((IS_OPTION("-s") || IS_OPTION("--service"))) {
@@ -189,6 +431,11 @@ static int run(int argc, char * argv[]) {
       printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %u)\n", ITERATIONS_BEFORE_SWITCH);
       printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_HIGH);
       printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_LOW);
+      printf("  -cmh, --clock-mem-high <value>            Set the high performance memory clock in MHz for fallback mode (default: auto)\n");
+      printf("  -cgh, --clock-gpu-high <value>            Set the high performance GPU clock in MHz for fallback mode (default: auto)\n");
+      printf("  -cml, --clock-mem-low <value>             Set the low performance memory clock in MHz for fallback mode (default: lowest)\n");
+      printf("  -cgl, --clock-gpu-low <value>             Set the low performance GPU clock in MHz for fallback mode (default: lowest)\n");
+      printf("  -nfc, --no-fallback-clocks                Disable fallback to clock control when pstate setting fails\n");
 
       #ifdef _WIN32
         printf("  -s, --service                             Run as a Windows service\n");
@@ -324,6 +571,11 @@ static int run(int argc, char * argv[]) {
     printf("iterationsBeforeSwitch = %lu\n", iterationsBeforeSwitch);
     printf("performanceStateHigh = %lu\n", performanceStateHigh);
     printf("performanceStateLow = %lu\n", performanceStateLow);
+    printf("clockFreqMemHigh = %lu\n", clockFreqMemHigh);
+    printf("clockFreqGpuHigh = %lu\n", clockFreqGpuHigh);
+    printf("clockFreqMemLow = %lu\n", clockFreqMemLow);
+    printf("clockFreqGpuLow = %lu\n", clockFreqGpuLow);
+    printf("enableClockFallback = %s\n", enableClockFallback ? "true" : "false");
     printf("sleepInterval = %lu\n", sleepInterval);
     printf("temperatureThreshold = %lu\n", temperatureThreshold);
 
@@ -381,6 +633,14 @@ static int run(int argc, char * argv[]) {
 
         // Increment the managed GPU counter
         managedGPUs++;
+        
+        // Initialize clock fallback mode for this GPU if enabled
+        if (enableClockFallback) {
+          // Get supported clocks
+          if (!get_supported_clocks(i)) {
+            fprintf(stderr, "Warning: Failed to get supported clocks for GPU %u, fallback mode may not work\n", i);
+          }
+        }
       }
     }
 
@@ -399,7 +659,7 @@ static int run(int argc, char * argv[]) {
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
       // Switch to low performance state
-      if (!enter_pstate(i, performanceStateLow)) {
+      if (!enter_pstate(i, performanceStateLow, clockFreqMemHigh, clockFreqGpuHigh, clockFreqMemLow, clockFreqGpuLow)) {
         goto errored;
       }
     }
@@ -422,7 +682,7 @@ static int run(int argc, char * argv[]) {
           // If the GPU is not already in low performance state
           if (state->pstateId != performanceStateLow) {
             // Switch to low performance state
-            if (!enter_pstate(i, performanceStateLow)) {
+            if (!enter_pstate(i, performanceStateLow, clockFreqMemHigh, clockFreqGpuHigh, clockFreqMemLow, clockFreqGpuLow)) {
               goto errored;
             }
           }
@@ -439,7 +699,7 @@ static int run(int argc, char * argv[]) {
           // If the GPU is not already in high performance state
           if (state->pstateId != performanceStateHigh) {
             // Switch to high performance state
-            if (!enter_pstate(i, performanceStateHigh)) {
+            if (!enter_pstate(i, performanceStateHigh, clockFreqMemHigh, clockFreqGpuHigh, clockFreqMemLow, clockFreqGpuLow)) {
               goto errored;
             }
           } else {
@@ -452,7 +712,7 @@ static int run(int argc, char * argv[]) {
             // If the number of iterations exceeds the threshold
             if (state->iterations > iterationsBeforeSwitch) {
               // Switch to low performance state
-              if (!enter_pstate(i, performanceStateLow)) {
+              if (!enter_pstate(i, performanceStateLow, clockFreqMemHigh, clockFreqGpuHigh, clockFreqMemLow, clockFreqGpuLow)) {
                 goto errored;
               }
             }
@@ -476,9 +736,21 @@ static int run(int argc, char * argv[]) {
   {
     // Iterate through each GPU
     for (unsigned int i = 0; i < deviceCount; i++) {
-      // Switch to automatic management of performance state
-      if (!enter_pstate(i, 16)) {
-        goto errored;
+      // Get the current state of the GPU
+      gpuState * state = &gpuStates[i];
+      
+      // If we're using clock control for this GPU
+      if (state->usingClockControl) {
+        // Reset to default clocks
+        nvmlReturn_t result = nvmlDeviceResetApplicationsClocks(nvmlDevices[i]);
+        if (result != NVML_SUCCESS) {
+          fprintf(stderr, "Warning: Failed to reset clocks for GPU %u: %s\n", i, nvmlErrorString(result));
+        }
+      } else {
+        // Switch to automatic management of performance state
+        if (!enter_pstate(i, 16, clockFreqMemHigh, clockFreqGpuHigh, clockFreqMemLow, clockFreqGpuLow)) {
+          goto errored;
+        }
       }
     }
 

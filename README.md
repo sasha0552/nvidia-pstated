@@ -10,20 +10,20 @@ flowchart TD
     subgraph For each GPU
     B("Check temperature[1]") -->|Below threshold| D
     B("Check temperature[1]") -->|Above threshold| C
-    C("Enter low PState[2]") --> M
+    C("Enter low PState[2]/Clock[6]") --> M
     D(Check utilization) -->|Is 0%| E
     D(Check utilization) -->|Is not 0%| J
     E(Check current PState) -->|High| F
     E(Check current PState) -->|Low| I
     F("Iterations counter exceeded threshold[3]") -->|Yes| G
     F("Iterations counter exceeded threshold[3]") -->|No| H
-    G("Enter low PState[2]") --> H
+    G("Enter low PState[2]/Clock[6]") --> H
     H(Increment iterations counter) --> M
     I(Do nothing) --> M
     J(Check current PState) -->|High| K
     J(Check current PState) -->|Low| L
     K(Reset iterations counter) --> M
-    L("Enter high PState[4]") --> M
+    L("Enter high PState[4]/Clock[7]") --> M
     end
     M(End) --> N
     N("Sleep[5]") --> A
@@ -34,6 +34,8 @@ flowchart TD
 3 - Threshold is controlled by option  `--iterations-before-switch` (default: `30` iterations)  
 4 - Value is controlled by option `--performance-state-high` (default: `16`)  
 5 - Value is controlled by option `--sleep-interval` (default: `100` milliseconds)  
+6 - For GPUs without P-states support (like Tesla V100), low clock is controlled by options `--clock-mem-low` and `--clock-gpu-low`  
+7 - For GPUs without P-states support (like Tesla V100), high clock is controlled by options `--clock-mem-high` and `--clock-gpu-high`  
 
 ## Installation
 
@@ -94,6 +96,31 @@ Suppose you have 8 GPUs and you want to manage only the first 4 (as in `nvidia-s
 
 ```sh
 ./nvidia-pstated -i 0,1,2,3
+```
+
+### Support for Tesla V100 and other GPUs without P-states
+
+Some GPUs like the Tesla V100 don't support multiple P-states but can still benefit from clock control. The daemon automatically detects when P-state control fails and falls back to clock control.
+
+You can configure the high and low clock frequencies:
+
+```sh
+# Set specific memory and GPU clocks (in MHz)
+./nvidia-pstated --clock-mem-high 0 --clock-gpu-high 0 --clock-mem-low 877 --clock-gpu-low 135
+```
+
+Where:
+- `--clock-mem-high 0`: Use automatic/maximum memory clock in high performance mode (default)
+- `--clock-gpu-high 0`: Use automatic/maximum GPU clock in high performance mode (default)  
+- `--clock-mem-low 877`: Use 877 MHz for memory clock in low performance mode  
+- `--clock-gpu-low 135`: Use 135 MHz for GPU clock in low performance mode
+
+If you don't specify the low clocks, the daemon will automatically find and use the lowest supported clocks.
+
+To disable the clock control fallback entirely:
+
+```sh
+./nvidia-pstated --no-fallback-clocks
 ```
 
 ### systemd service
