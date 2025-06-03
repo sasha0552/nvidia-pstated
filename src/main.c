@@ -120,7 +120,7 @@ static bool get_supported_clocks(unsigned int i) {
   nvmlReturn_t result;
 
   // Get the number of supported memory clocks
-  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count);
+  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count, NULL);
   if (result != NVML_SUCCESS) {
     fprintf(stderr, "Unable to get number of supported memory clocks for GPU %u: %s\n", 
             i, nvmlErrorString(result));
@@ -160,7 +160,7 @@ static bool get_supported_clocks(unsigned int i) {
   
   // Now get the lowest GPU clock for this memory clock
   unsigned int gpuClockCount = 0;
-  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount);
+  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount, NULL);
   if (result != NVML_SUCCESS) {
     fprintf(stderr, "Unable to get number of supported GPU clocks for GPU %u: %s\n", 
             i, nvmlErrorString(result));
