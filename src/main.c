@@ -119,10 +119,15 @@ static bool get_supported_clocks(unsigned int i) {
   unsigned int count = 0;
   nvmlReturn_t result;
 
-  // Get the number of supported memory clocks
-  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count, NULL);
+  // First, try to get the count by providing a large enough initial buffer
+  // This is required on Windows where NVML needs a buffer even for count queries
+  unsigned int tempMemClocks[256]; // Temporary buffer for initial query
+  count = 256;
+  
+  // Get the supported memory clocks
+  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count, tempMemClocks);
   if (result != NVML_SUCCESS) {
-    fprintf(stderr, "Unable to get number of supported memory clocks for GPU %u: %s\n", 
+    fprintf(stderr, "Unable to get supported memory clocks for GPU %u: %s\n", 
             i, nvmlErrorString(result));
     return false;
   }
@@ -132,82 +137,44 @@ static bool get_supported_clocks(unsigned int i) {
     return false;
   }
 
-  // Allocate memory for the clocks
-  unsigned int *memClocks = malloc(sizeof(unsigned int) * count);
-  if (memClocks == NULL) {
-    fprintf(stderr, "Memory allocation failed for memory clocks array\n");
-    return false;
-  }
-
-  // Get the supported memory clocks
-  result = nvmlDeviceGetSupportedMemoryClocks(nvmlDevices[i], &count, memClocks);
-  if (result != NVML_SUCCESS) {
-    fprintf(stderr, "Unable to get supported memory clocks for GPU %u: %s\n", 
-            i, nvmlErrorString(result));
-    free(memClocks);
-    return false;
-  }
-
-  // Find the lowest memory clock
-  unsigned int lowestMemClock = memClocks[0];
+  // Find the lowest memory clock from the retrieved clocks
+  unsigned int lowestMemClock = tempMemClocks[0];
   for (unsigned int j = 1; j < count; j++) {
-    if (memClocks[j] < lowestMemClock) {
-      lowestMemClock = memClocks[j];
+    if (tempMemClocks[j] < lowestMemClock) {
+      lowestMemClock = tempMemClocks[j];
     }
   }
   
   state->minMemClock = lowestMemClock;
   
-  // Now get the lowest GPU clock for this memory clock
-  unsigned int gpuClockCount = 0;
-  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount, NULL);
+  // Now get the GPU clocks for this memory clock
+  unsigned int tempGpuClocks[512]; // Temporary buffer for GPU clocks
+  unsigned int gpuClockCount = 512;
+  
+  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount, tempGpuClocks);
   if (result != NVML_SUCCESS) {
-    fprintf(stderr, "Unable to get number of supported GPU clocks for GPU %u: %s\n", 
+    fprintf(stderr, "Unable to get supported GPU clocks for GPU %u: %s\n", 
             i, nvmlErrorString(result));
-    free(memClocks);
     return false;
   }
   
   if (gpuClockCount == 0) {
     fprintf(stderr, "No supported GPU clocks found for GPU %u with memory clock %u MHz\n", 
             i, lowestMemClock);
-    free(memClocks);
     return false;
   }
   
-  // Allocate memory for the clocks
-  unsigned int *gpuClocks = malloc(sizeof(unsigned int) * gpuClockCount);
-  if (gpuClocks == NULL) {
-    fprintf(stderr, "Memory allocation failed for GPU clocks array\n");
-    free(memClocks);
-    return false;
-  }
-  
-  // Get the supported GPU clocks
-  result = nvmlDeviceGetSupportedGraphicsClocks(nvmlDevices[i], lowestMemClock, &gpuClockCount, gpuClocks);
-  if (result != NVML_SUCCESS) {
-    fprintf(stderr, "Unable to get supported GPU clocks for GPU %u: %s\n", 
-            i, nvmlErrorString(result));
-    free(memClocks);
-    free(gpuClocks);
-    return false;
-  }
-  
-  // Find the lowest GPU clock
-  unsigned int lowestGpuClock = gpuClocks[0];
+  // Find the lowest GPU clock from the retrieved clocks
+  unsigned int lowestGpuClock = tempGpuClocks[0];
   for (unsigned int j = 1; j < gpuClockCount; j++) {
-    if (gpuClocks[j] < lowestGpuClock) {
-      lowestGpuClock = gpuClocks[j];
+    if (tempGpuClocks[j] < lowestGpuClock) {
+      lowestGpuClock = tempGpuClocks[j];
     }
   }
   
   state->minGpuClock = lowestGpuClock;
   
   printf("GPU %u lowest clocks: Memory %u MHz, GPU %u MHz\n", i, lowestMemClock, lowestGpuClock);
-  
-  // Free allocated memory
-  free(memClocks);
-  free(gpuClocks);
   
   return true;
 }
@@ -223,9 +190,26 @@ static bool set_clocks(unsigned int i, bool highPerformance, unsigned long memFr
   
   unsigned int memClock, gpuClock;
   if (highPerformance) {
-    // Use high performance clocks or auto
-    memClock = memFreqHigh > 0 ? memFreqHigh : 0;
-    gpuClock = gpuFreqHigh > 0 ? gpuFreqHigh : 0;
+    // For high performance, if 0 is specified, reset to auto by calling reset
+    if (memFreqHigh == 0 && gpuFreqHigh == 0) {
+      nvmlReturn_t result = nvmlDeviceResetApplicationsClocks(nvmlDevices[i]);
+      if (result != NVML_SUCCESS) {
+        fprintf(stderr, "Unable to reset clocks for GPU %u: %s\n", 
+                i, nvmlErrorString(result));
+        return false;
+      }
+      
+      // Update current clock values to indicate auto mode
+      state->currentMemClock = 0;
+      state->currentGpuClock = 0;
+      
+      printf("GPU %u clocks reset to auto (high performance mode)\n", i);
+      return true;
+    } else {
+      // Use specified high performance clocks
+      memClock = memFreqHigh;
+      gpuClock = gpuFreqHigh;
+    }
   } else {
     // Use low performance clocks or the lowest available
     memClock = memFreqLow > 0 ? memFreqLow : state->minMemClock;
