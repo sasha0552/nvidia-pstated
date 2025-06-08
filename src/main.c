@@ -31,6 +31,9 @@
 // Temperature threshold (in degrees C)
 #define TEMPERATURE_THRESHOLD 80
 
+// Utilization threshold (in percentage)
+#define UTILIZATION_THRESHOLD 0
+
 /***** ***** ***** ***** ***** STRUCTURES ***** ***** ***** ***** *****/
 
 // Structure to hold the state of each GPU
@@ -122,6 +125,7 @@ static int run(int argc, char * argv[]) {
   unsigned long performanceStateLow = PERFORMANCE_STATE_LOW;
   unsigned long sleepInterval = SLEEP_INTERVAL;
   unsigned long temperatureThreshold = TEMPERATURE_THRESHOLD;
+  unsigned long utilizationThreshold = UTILIZATION_THRESHOLD;
 
   /***** OPTION PARSING *****/
   {
@@ -174,6 +178,12 @@ static int run(int argc, char * argv[]) {
         // Parse the integer option and store it in temperatureThreshold
         ASSERT_TRUE(parse_ulong(argv[++i], &temperatureThreshold), usage);
       }
+
+      // Check if the option is "-ut" or "--utilization-threshold" and if there is a next argument
+      if ((IS_OPTION("-ut") || IS_OPTION("--utilization-threshold")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in utilizationThreshold
+        ASSERT_TRUE(parse_ulong(argv[++i], &utilizationThreshold), usage);
+      }
     }
 
     // Display usage instructions to the user
@@ -196,6 +206,7 @@ static int run(int argc, char * argv[]) {
 
       printf("  -si, --sleep-interval <value>             Set the sleep interval in milliseconds between utilization checks (default: %u)\n", SLEEP_INTERVAL);
       printf("  -tt, --temperature-threshold <value>      Set the temperature threshold in degrees C (default: %u)\n", TEMPERATURE_THRESHOLD);
+      printf("  -ut, --utilization-threshold <value>      Set the utilization threshold in percentage (default: %u)\n", UTILIZATION_THRESHOLD);
 
       // Jump to the error handling code
       goto errored;
@@ -326,6 +337,7 @@ static int run(int argc, char * argv[]) {
     printf("performanceStateLow = %lu\n", performanceStateLow);
     printf("sleepInterval = %lu\n", sleepInterval);
     printf("temperatureThreshold = %lu\n", temperatureThreshold);
+    printf("utilizationThreshold = %lu\n", utilizationThreshold);
 
     // Check if there are specific GPU ids to process
     if (idsCount != 0) {
@@ -434,8 +446,8 @@ static int run(int argc, char * argv[]) {
         // Retrieve the current utilization rates of the GPU
         NVML_CALL(nvmlDeviceGetUtilizationRates(nvmlDevices[i], &utilization), errored);
 
-        // Check if the GPU utilization is not zero
-        if (utilization.gpu != 0) {
+        // Check if the GPU utilization is above the defined threshold
+        if (utilization.gpu > utilizationThreshold) {
           // If the GPU is not already in high performance state
           if (state->pstateId != performanceStateHigh) {
             // Switch to high performance state

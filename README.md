@@ -11,29 +11,30 @@ flowchart TD
     B("Check temperature[1]") -->|Below threshold| D
     B("Check temperature[1]") -->|Above threshold| C
     C("Enter low PState[2]") --> M
-    D(Check utilization) -->|Is 0%| E
-    D(Check utilization) -->|Is not 0%| J
+    D("Check utilization[3]") -->|Below threshold| E
+    D("Check utilization[3]") -->|Above threshold| J
     E(Check current PState) -->|High| F
     E(Check current PState) -->|Low| I
-    F("Iterations counter exceeded threshold[3]") -->|Yes| G
-    F("Iterations counter exceeded threshold[3]") -->|No| H
+    F("Iterations counter exceeded threshold[4]") -->|Yes| G
+    F("Iterations counter exceeded threshold[4]") -->|No| H
     G("Enter low PState[2]") --> H
     H(Increment iterations counter) --> M
     I(Do nothing) --> M
     J(Check current PState) -->|High| K
     J(Check current PState) -->|Low| L
     K(Reset iterations counter) --> M
-    L("Enter high PState[4]") --> M
+    L("Enter high PState[5]") --> M
     end
     M(End) --> N
-    N("Sleep[5]") --> A
+    N("Sleep[6]") --> A
 ```
 
 1 - Threshold is controlled by option `--temperature-threshold` (default: `80` degrees C)  
 2 - Value is controlled by option `--performance-state-low` (default: `8`)  
-3 - Threshold is controlled by option  `--iterations-before-switch` (default: `30` iterations)  
-4 - Value is controlled by option `--performance-state-high` (default: `16`)  
-5 - Value is controlled by option `--sleep-interval` (default: `100` milliseconds)  
+3 - Threshold is controlled by option `--utilization` (default: `0` %)  
+4 - Threshold is controlled by option  `--iterations-before-switch` (default: `30` iterations)  
+5 - Value is controlled by option `--performance-state-high` (default: `16`)  
+6 - Value is controlled by option `--sleep-interval` (default: `100` milliseconds)  
 
 ## Installation
 
