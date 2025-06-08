@@ -1,5 +1,5 @@
 # Specify the minimum required version of CMake
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
 # Include the FetchContent module
 include(FetchContent)
