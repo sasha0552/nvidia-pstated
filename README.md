@@ -31,7 +31,7 @@ flowchart TD
 
 1 - Threshold is controlled by option `--temperature-threshold` (default: `80` degrees C)  
 2 - Value is controlled by option `--performance-state-low` (default: `8`)  
-3 - Threshold is controlled by option `--utilization` (default: `0` %)  
+3 - Threshold is controlled by option `--utilization-threshold` (default: `0` %)  
 4 - Threshold is controlled by option  `--iterations-before-switch` (default: `30` iterations)  
 5 - Value is controlled by option `--performance-state-high` (default: `16`)  
 6 - Value is controlled by option `--sleep-interval` (default: `100` milliseconds)  
