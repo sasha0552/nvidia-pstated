@@ -154,3 +154,18 @@ To do this, you need to:
    ```
 5. Use `sed -i 's/535.183.06/535.183.04/g' libnvidia-api.so.1` (replace the values with what you got in `dmesg`) to replace the client version in `libnvidia-api.so.1`.
 6. Run `nvidia-pstated`: `LD_LIBRARY_PATH=. ./nvidia-pstated`. Enjoy.
+
+### Controlling the fans from `nvidia-pstated`
+
+You can control the external fans installed on the GPUs using `--disable-fan-script` and `--enable-fan-script`
+
+For example, I have a server fans connected to AC 220v -> DC 12v PSU. I'm using a Sonoff Basic R2 (a AC 220v smart relay) with flashed [Tasmota](https://tasmota.github.io/docs/) on it, and can control it by using:
+
+`nvidia-pstated --disable-fan-script 'curl --output /dev/null --silent "http://x.x.x.x/cm?cmnd=POWER%20OFF"' --enable-fan-script 'curl --output /dev/null --silent "http://x.x.x.x/cm?cmnd=POWER%20ON"'`
+
+By default, nvidia-pstated:
+1. Disables the fans at startup 
+2. Enables the fans when the GPUs are overheated (`--temperature-threshold`)
+3. Enables the fans when switching to high performance state
+4. Disables the fans when idling for 15 minutes (when not overheated)
+5. Enables the fans at exit

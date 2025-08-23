@@ -16,6 +16,9 @@
 
 /***** ***** ***** ***** ***** CONSTANTS ***** ***** ***** ***** *****/
 
+// Number of iterations to wait before considering disabling the fan
+#define ITERATIONS_BEFORE_IDLE 9000
+
 // Number of iterations to wait before switching states
 #define ITERATIONS_BEFORE_SWITCH 30
 
@@ -46,6 +49,9 @@ typedef struct {
 
   // GPU management state
   bool managed;
+
+  // Flag to prevent idle ticks
+  bool preventIdleTick;
 } gpuState;
 
 /***** ***** ***** ***** ***** VARIABLES ***** ***** ***** ***** *****/
@@ -76,6 +82,12 @@ static nvmlUtilization_t utilization;
 // Variable to store GPU states
 static gpuState gpuStates[NVAPI_MAX_PHYSICAL_GPUS];
 
+// Variable to store fan state
+static int fanEnabled = 0;
+
+// Variable to store idle time
+static unsigned int idleTime = 0;
+
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
 static void handle_exit(int signal) {
@@ -84,6 +96,38 @@ static void handle_exit(int signal) {
     // Set the global flag to false to indicate the program should stop running
     shouldRun = false;
   }
+}
+
+static bool invoke_fan_script(bool isEnableScript, char * script) {
+  // If the fan state is already as desired
+  if (fanEnabled == (isEnableScript ? 1 : 2)) {
+    // Skip invoking the script
+    return true;
+  }
+
+  // If script is provided
+  if (script != NULL) {
+    // Print message indicating the script is being invoked
+    printf("Invoking fan %s script\n", isEnableScript ? "enable" : "disable");
+
+    // Execute the fan enable script
+    int ret = system(script);
+
+    // Check if the script execution was successful
+    if (ret != 0) {
+      // Print error message if the script failed
+      printf("Fan %s script failed with exit code %d\n", isEnableScript ? "enable" : "disable", ret);
+
+      // It would be better to continue running even if the script fails
+      //return false;
+    }
+  }
+
+  // Update the fan state
+  fanEnabled = isEnableScript ? 1 : 2;
+
+  // Return true to indicate success
+  return true;
 }
 
 static bool enter_pstate(unsigned int i, unsigned int pstateId) {
@@ -118,8 +162,11 @@ static bool enter_pstate(unsigned int i, unsigned int pstateId) {
 
 static int run(int argc, char * argv[]) {
   /***** OPTIONS *****/
+  char * disableFanScript = NULL;
+  char * enableFanScript = NULL;
   unsigned long ids[NVAPI_MAX_PHYSICAL_GPUS] = { 0 };
   size_t idsCount = 0;
+  unsigned long iterationsBeforeIdle = ITERATIONS_BEFORE_IDLE;
   unsigned long iterationsBeforeSwitch = ITERATIONS_BEFORE_SWITCH;
   unsigned long performanceStateHigh = PERFORMANCE_STATE_HIGH;
   unsigned long performanceStateLow = PERFORMANCE_STATE_LOW;
@@ -141,6 +188,24 @@ static int run(int argc, char * argv[]) {
       if ((IS_OPTION("-h") || IS_OPTION("--help"))) {
         // Print usage instructions
         goto usage;
+      }
+
+      // Check if the option is "-dfs" or "("--disable-fan-script" and if there is a next argument
+      if ((IS_OPTION("-dfs") || IS_OPTION("--disable-fan-script")) && HAS_NEXT_ARG) {
+        // Store it in disableFanScript
+        disableFanScript = argv[++i];
+      }
+
+      // Check if the option is "-efs" or --enable-fan-script" and if there is a next argument
+      if ((IS_OPTION("-efs") || IS_OPTION("--enable-fan-script")) && HAS_NEXT_ARG) {
+        // Store it in enableFanScript
+        enableFanScript = argv[++i];
+      }
+
+      // Check if the option is "-ibi" or "--iterations-before-idle" and if there is a next argument
+      if ((IS_OPTION("-ibi") || IS_OPTION("--iterations-before-idle")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in iterationsBeforeIdle
+        ASSERT_TRUE(parse_ulong(argv[++i], &iterationsBeforeIdle), usage);
       }
 
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
@@ -195,7 +260,10 @@ static int run(int argc, char * argv[]) {
       printf("Usage: %s [options]\n", argv[0]);
       printf("\n");
       printf("Options:\n");
+      printf("  -dfs, --disable-fan-script <value>        Script to run when the GPU fan should be disabled (default: none)\n");
+      printf("  -efs, --enable-fan-script <value>         Script to run when the GPU fan should be enabled (default: none)\n");
       printf("  -i, --ids <value><,value...>              Set the GPU(s) to control (default: all)\n");
+      printf("  -ibi, --iterations-before-idle <value>    Set the number of iterations to wait before considering disabling the fan (default: %u)\n", ITERATIONS_BEFORE_IDLE);
       printf("  -ibs, --iterations-before-switch <value>  Set the number of iterations to wait before switching states (default: %u)\n", ITERATIONS_BEFORE_SWITCH);
       printf("  -psh, --performance-state-high <value>    Set the high performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_HIGH);
       printf("  -psl, --performance-state-low <value>     Set the low performance state for the GPU (default: %u)\n", PERFORMANCE_STATE_LOW);
@@ -332,6 +400,9 @@ static int run(int argc, char * argv[]) {
     }
 
     // Print remaining variables
+    printf("disableFanScript = %s\n", disableFanScript ? disableFanScript : "N/A");
+    printf("enableFanScript = %s\n", enableFanScript ? enableFanScript : "N/A");
+    printf("iterationsBeforeIdle = %lu\n", iterationsBeforeIdle);
     printf("iterationsBeforeSwitch = %lu\n", iterationsBeforeSwitch);
     printf("performanceStateHigh = %lu\n", performanceStateHigh);
     printf("performanceStateLow = %lu\n", performanceStateLow);
@@ -414,6 +485,9 @@ static int run(int argc, char * argv[]) {
       if (!enter_pstate(i, performanceStateLow)) {
         goto errored;
       }
+
+      // Disable the fan
+      ASSERT_TRUE(invoke_fan_script(false, disableFanScript), errored);
     }
   }
 
@@ -421,6 +495,57 @@ static int run(int argc, char * argv[]) {
   {
     // Infinite loop to continuously monitor GPU temperature and utilization
     while (shouldRun) {
+      /*** TRACK IDLE STATE ***/
+      {
+        // Flag to track if all GPUs are idle
+        bool allIdle = true;
+
+        // Flag to track if any GPU is preventing idle ticks
+        bool preventingIdleTick = false;
+
+        // Iterate through each GPU
+        for (unsigned int i = 0; i < deviceCount; i++) {
+          // Get the current state of the GPU
+          gpuState * state = &gpuStates[i];
+
+          // Check if GPU is unmanaged
+          if (!state->managed) {
+            // Skip to the next GPU
+            continue;
+          }
+
+          // If the GPU is not in low performance state
+          if (state->pstateId != performanceStateLow) {
+            // Set the allIdle flag to false
+            allIdle = false;
+          }
+
+          // If the GPU is preventing idle ticks
+          if (state->preventIdleTick) {
+            // Set the preventIdleTick flag to true
+            preventingIdleTick = true;
+          }
+        }
+
+        // If all GPUs are idle, increment the idle time counter
+        if (allIdle) {
+          // If idle time exceeds N iterations
+          if (idleTime >= iterationsBeforeIdle) {
+            // Disable the fan
+            ASSERT_TRUE(invoke_fan_script(false, disableFanScript), errored);
+          } else {
+            // If not preventing idle tick
+            if (!preventingIdleTick) {
+              // Increment the idle time counter
+              idleTime += 1;
+            }
+          }
+        } else {
+          // Reset the idle time counter
+          idleTime = 0;
+        }
+      }
+
       // Loop through all devices
       for (unsigned int i = 0; i < deviceCount; i++) {
         // Get the current state of the GPU
@@ -437,10 +562,19 @@ static int run(int argc, char * argv[]) {
             if (!enter_pstate(i, performanceStateLow)) {
               goto errored;
             }
+
+            // Enable the fan
+            ASSERT_TRUE(invoke_fan_script(true, enableFanScript), errored);
+
+            // Prevent idle ticks
+            state->preventIdleTick = true;
           }
 
           // Skip further checks for this iteration
           continue;
+        } else {
+          // Allow idle ticks
+          state->preventIdleTick = false;
         }
 
         // Retrieve the current utilization rates of the GPU
@@ -454,6 +588,9 @@ static int run(int argc, char * argv[]) {
             if (!enter_pstate(i, performanceStateHigh)) {
               goto errored;
             }
+
+            // Enable the fan
+            ASSERT_TRUE(invoke_fan_script(true, enableFanScript), errored);
           } else {
             // Reset the iteration counter
             state->iterations = 0;
@@ -492,6 +629,9 @@ static int run(int argc, char * argv[]) {
       if (!enter_pstate(i, 16)) {
         goto errored;
       }
+
+      // Enable the fan
+      ASSERT_TRUE(invoke_fan_script(true, enableFanScript), errored);
     }
 
     // Notify about the exit
