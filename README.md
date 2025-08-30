@@ -6,27 +6,27 @@ A daemon that automatically manages the performance states of NVIDIA GPUs.
 
 ```mermaid
 flowchart TD
-    A(Start) --> B
+    START(Start) --> CHECK_TEMPERATURE
     subgraph For each GPU
-    B("Check temperature[1]") -->|Below threshold| D
-    B("Check temperature[1]") -->|Above threshold| C
-    C("Enter low PState[2]") --> M
-    D("Check utilization[3]") -->|Below threshold| E
-    D("Check utilization[3]") -->|Above threshold| J
-    E(Check current PState) -->|High| F
-    E(Check current PState) -->|Low| I
-    F("Iterations counter exceeded threshold[4]") -->|Yes| G
-    F("Iterations counter exceeded threshold[4]") -->|No| H
-    G("Enter low PState[2]") --> H
-    H(Increment iterations counter) --> M
-    I(Do nothing) --> M
-    J(Check current PState) -->|High| K
-    J(Check current PState) -->|Low| L
-    K(Reset iterations counter) --> M
-    L("Enter high PState[5]") --> M
+    CHECK_TEMPERATURE("Check temperature[1]") -->|Below threshold| CHECK_UTILIZATION
+    CHECK_TEMPERATURE("Check temperature[1]") -->|Above threshold| ENTER_LOW_PSTATE_0
+    ENTER_LOW_PSTATE_0("Enter low PState[2]") --> END
+    CHECK_UTILIZATION("Check utilization[3]") -->|Below threshold| CHECK_CURRENT_PSTATE_0
+    CHECK_UTILIZATION("Check utilization[3]") -->|Above threshold| CHECK_CURRENT_PSTATE_1
+    CHECK_CURRENT_PSTATE_0(Check current PState) -->|High| ITERATIONS_COUNTER_EXCEEDED_THRESHOLD
+    CHECK_CURRENT_PSTATE_0(Check current PState) -->|Low| DO_NOTHING
+    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD("Iterations counter exceeded threshold[4]") -->|Yes| ENTER_LOW_PSTATE_1
+    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD("Iterations counter exceeded threshold[4]") -->|No| INCREMENT_ITERATIONS_COUNTER
+    ENTER_LOW_PSTATE_1("Enter low PState[2]") --> INCREMENT_ITERATIONS_COUNTER
+    INCREMENT_ITERATIONS_COUNTER(Increment iterations counter) --> END
+    DO_NOTHING(Do nothing) --> END
+    CHECK_CURRENT_PSTATE_1(Check current PState) -->|High| RESET_ITERATIONS_COUNTER
+    CHECK_CURRENT_PSTATE_1(Check current PState) -->|Low| ENTER_HIGH_PSTATE
+    RESET_ITERATIONS_COUNTER(Reset iterations counter) --> END
+    ENTER_HIGH_PSTATE("Enter high PState[5]") --> END
     end
-    M(End) --> N
-    N("Sleep[6]") --> A
+    END(End) --> SLEEP
+    SLEEP("Sleep[6]") --> START
 ```
 
 1 - Threshold is controlled by option `--temperature-threshold` (default: `80` degrees C)  
