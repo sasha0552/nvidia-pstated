@@ -10,20 +10,25 @@ flowchart TD
     subgraph For each GPU
     CHECK_TEMPERATURE("Check temperature[1]") -->|Below threshold| CHECK_UTILIZATION
     CHECK_TEMPERATURE("Check temperature[1]") -->|Above threshold| ENTER_LOW_PSTATE_0
-    ENTER_LOW_PSTATE_0("Enter low PState[2]") --> END
+    ENTER_LOW_PSTATE_0("Enter low PState[2]") --> ENTER_HIGH_FAN_STATE_0
+    ENTER_HIGH_FAN_STATE_0("Enter high fan state[9]") --> END
     CHECK_UTILIZATION("Check utilization[3]") -->|Below threshold| CHECK_CURRENT_PSTATE_0
     CHECK_UTILIZATION("Check utilization[3]") -->|Above threshold| CHECK_CURRENT_PSTATE_1
-    CHECK_CURRENT_PSTATE_0(Check current PState) -->|High| ITERATIONS_COUNTER_EXCEEDED_THRESHOLD
+    CHECK_CURRENT_PSTATE_0(Check current PState) -->|High| ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_0
     CHECK_CURRENT_PSTATE_0(Check current PState) -->|Low| DO_NOTHING
-    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD("Iterations counter exceeded threshold[4]") -->|Yes| ENTER_LOW_PSTATE_1
-    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD("Iterations counter exceeded threshold[4]") -->|No| INCREMENT_ITERATIONS_COUNTER
-    ENTER_LOW_PSTATE_1("Enter low PState[2]") --> INCREMENT_ITERATIONS_COUNTER
+    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_0("Iterations counter exceeded threshold[4]") -->|Yes| ENTER_LOW_PSTATE
+    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_0("Iterations counter exceeded threshold[4]") -->|No| ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_1
+    ENTER_LOW_PSTATE("Enter low PState[2]") --> ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_1
+    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_1("Iterations counter exceeded threshold[7]") -->|Yes| ENTER_LOW_FAN_STATE_1
+    ITERATIONS_COUNTER_EXCEEDED_THRESHOLD_1("Iterations counter exceeded threshold[7]") -->|No| INCREMENT_ITERATIONS_COUNTER
+    ENTER_LOW_FAN_STATE_1("Enter low fan state[8]") --> INCREMENT_ITERATIONS_COUNTER
     INCREMENT_ITERATIONS_COUNTER(Increment iterations counter) --> END
     DO_NOTHING(Do nothing) --> END
     CHECK_CURRENT_PSTATE_1(Check current PState) -->|High| RESET_ITERATIONS_COUNTER
     CHECK_CURRENT_PSTATE_1(Check current PState) -->|Low| ENTER_HIGH_PSTATE
     RESET_ITERATIONS_COUNTER(Reset iterations counter) --> END
-    ENTER_HIGH_PSTATE("Enter high PState[5]") --> END
+    ENTER_HIGH_PSTATE("Enter high PState[5]") --> ENTER_HIGH_FAN_STATE_1
+    ENTER_HIGH_FAN_STATE_1("Enter high fan state[9]") --> END
     end
     END(End) --> SLEEP
     SLEEP("Sleep[6]") --> START
@@ -35,6 +40,9 @@ flowchart TD
 4 - Threshold is controlled by option  `--iterations-before-switch` (default: `30` iterations)  
 5 - Value is controlled by option `--performance-state-high` (default: `16`)  
 6 - Value is controlled by option `--sleep-interval` (default: `100` milliseconds)  
+7 - Threshold is controlled by option `--iterations-before-idle` (default: `9000` iterations)  
+8 - Value is controlled by option `--disable-fan-script` (default: none)  
+9 - Value is controlled by option `--enable-fan-script` (default: none)
 
 ## Installation
 
