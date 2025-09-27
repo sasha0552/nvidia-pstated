@@ -578,7 +578,7 @@ static int run(int argc, char * argv[]) {
             int maxCommandLength = strlen(keepaliveFanScript) + 32;
 
             // Allocate buffer for command
-            char * command = (char *) malloc(maxCommandLength);
+            char * command = (char *) SAFE_MALLOC(maxCommandLength, errored);
 
             // Include the fan state in the command
             #ifdef _WIN32
@@ -591,7 +591,7 @@ static int run(int argc, char * argv[]) {
             int ret = system(command);
 
             // Free the allocated buffer
-            free(command);
+            SAFE_FREE(command);
 
             // Check if the script execution was successful
             if (ret != 0) {
@@ -602,6 +602,9 @@ static int run(int argc, char * argv[]) {
             // Reset the iteration counter
             keepaliveIterations = 0;
           }
+
+          // Increment the iteration counter
+          keepaliveIterations += 1;
         }
       }
 

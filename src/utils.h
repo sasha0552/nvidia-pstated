@@ -45,6 +45,21 @@
   ptr = NULL;                   \
 } while (0);
 
+// Macro to safely allocate memory and handle allocation failure
+#define SAFE_MALLOC(size, label) do {                          \
+  /* Allocate the memory */                                    \
+  ptr = malloc(size);                                          \
+                                                               \
+  /* Check if the allocation was unsuccessful */               \
+  if (ptr == NULL) {                                           \
+    /* Print the error message to standard error */            \
+    fprintf(stderr, "%s: Memory allocation failure\n", #call); \
+                                                               \
+    /* Jump to the specified label */                          \
+    goto label;                                                \
+  }                                                            \
+} while (0);
+
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
 bool parse_ulong(const char *arg, unsigned long *value);
