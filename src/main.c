@@ -577,8 +577,11 @@ static int run(int argc, char * argv[]) {
             // Determine the maximum command length
             int maxCommandLength = strlen(keepaliveFanScript) + 32;
 
+            // Variable to hold the command
+            char * command;
+
             // Allocate buffer for command
-            char * command = (char *) SAFE_MALLOC(maxCommandLength, errored);
+            SAFE_MALLOC(command, maxCommandLength, errored);
 
             // Include the fan state in the command
             #ifdef _WIN32

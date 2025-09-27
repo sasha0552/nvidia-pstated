@@ -46,7 +46,7 @@
 } while (0);
 
 // Macro to safely allocate memory and handle allocation failure
-#define SAFE_MALLOC(size, label) do {                          \
+#define SAFE_MALLOC(ptr, size, label) do {                     \
   /* Allocate the memory */                                    \
   ptr = malloc(size);                                          \
                                                                \
