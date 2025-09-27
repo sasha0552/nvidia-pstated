@@ -19,6 +19,9 @@
 // Number of iterations to wait before considering disabling the fan
 #define ITERATIONS_BEFORE_IDLE 9000
 
+// Number of iterations to wait before invoking the keepalive fan script
+#define ITERATIONS_BEFORE_KEEPALIVE 10
+
 // Number of iterations to wait before switching states
 #define ITERATIONS_BEFORE_SWITCH 30
 
@@ -87,6 +90,9 @@ static int fanEnabled = 0;
 
 // Variable to store idle time
 static unsigned int idleTime = 0;
+
+// Variable to store keepalive iterations
+static unsigned int keepaliveIterations = 0;
 
 /***** ***** ***** ***** ***** FUNCTIONS ***** ***** ***** ***** *****/
 
@@ -164,9 +170,11 @@ static int run(int argc, char * argv[]) {
   /***** OPTIONS *****/
   char * disableFanScript = NULL;
   char * enableFanScript = NULL;
+  char * keepaliveFanScript = NULL;
   unsigned long ids[NVAPI_MAX_PHYSICAL_GPUS] = { 0 };
   size_t idsCount = 0;
   unsigned long iterationsBeforeIdle = ITERATIONS_BEFORE_IDLE;
+  unsigned long iterationsBeforeKeepalive = ITERATIONS_BEFORE_KEEPALIVE;
   unsigned long iterationsBeforeSwitch = ITERATIONS_BEFORE_SWITCH;
   unsigned long performanceStateHigh = PERFORMANCE_STATE_HIGH;
   unsigned long performanceStateLow = PERFORMANCE_STATE_LOW;
@@ -208,10 +216,22 @@ static int run(int argc, char * argv[]) {
         ASSERT_TRUE(parse_ulong(argv[++i], &iterationsBeforeIdle), usage);
       }
 
+      // Check if the option is "-ibk" or "--iterations-before-keepalive" and if there is a next argument
+      if ((IS_OPTION("-ibk") || IS_OPTION("--iterations-before-keepalive")) && HAS_NEXT_ARG) {
+        // Parse the integer option and store it in iterationsBeforeKeepalive
+        ASSERT_TRUE(parse_ulong(argv[++i], &iterationsBeforeKeepalive), usage);
+      }
+
       // Check if the option is "-ibs" or "--iterations-before-switch" and if there is a next argument
       if ((IS_OPTION("-ibs") || IS_OPTION("--iterations-before-switch")) && HAS_NEXT_ARG) {
         // Parse the integer option and store it in iterationsBeforeSwitch
         ASSERT_TRUE(parse_ulong(argv[++i], &iterationsBeforeSwitch), usage);
+      }
+
+      // Check if the option is "-kfs" or --keepalive-fan-script" and if there is a next argument
+      if ((IS_OPTION("-kfs") || IS_OPTION("--keepalive-fan-script")) && HAS_NEXT_ARG) {
+        // Store it in keepaliveFanScript
+        keepaliveFanScript = argv[++i];
       }
 
       // Check if the option is "-psh" or "--performance-state-high" and if there is a next argument
@@ -403,7 +423,9 @@ static int run(int argc, char * argv[]) {
     printf("disableFanScript = %s\n", disableFanScript ? disableFanScript : "N/A");
     printf("enableFanScript = %s\n", enableFanScript ? enableFanScript : "N/A");
     printf("iterationsBeforeIdle = %lu\n", iterationsBeforeIdle);
+    printf("iterationsBeforeKeepalive = %lu\n", iterationsBeforeKeepalive);
     printf("iterationsBeforeSwitch = %lu\n", iterationsBeforeSwitch);
+    printf("keepaliveFanScript = %s\n", keepaliveFanScript ? keepaliveFanScript : "N/A");
     printf("performanceStateHigh = %lu\n", performanceStateHigh);
     printf("performanceStateLow = %lu\n", performanceStateLow);
     printf("sleepInterval = %lu\n", sleepInterval);
@@ -543,6 +565,43 @@ static int run(int argc, char * argv[]) {
         } else {
           // Reset the idle time counter
           idleTime = 0;
+        }
+      }
+
+      /*** MAINTAIN KEEPALIVE ***/
+      {
+        // Check if the keepalive fan script is set
+        if (keepaliveFanScript != NULL) {
+          // If iterations exceeds N iterations
+          if (keepaliveIterations >= iterationsBeforeKeepalive) {
+            // Determine the maximum command length
+            int maxCommandLength = strlen(keepaliveFanScript) + 32;
+
+            // Allocate buffer for command
+            char * command = (char *) malloc(maxCommandLength);
+
+            // Include the fan state in the command
+            #ifdef _WIN32
+              snprintf(command, maxCommandLength, "set FAN_STATE=%d && %s", fanEnabled, keepaliveFanScript);
+            #else
+              snprintf(command, maxCommandLength, "FAN_STATE=%d %s", fanEnabled, keepaliveFanScript);
+            #endif
+
+            // Execute the fan keepalive script
+            int ret = system(command);
+
+            // Free the allocated buffer
+            free(command);
+
+            // Check if the script execution was successful
+            if (ret != 0) {
+              // Print error message if the script failed
+              printf("Fan keepalive script failed with exit code %d\n", ret);
+            }
+
+            // Reset the iteration counter
+            keepaliveIterations = 0;
+          }
         }
       }
 
