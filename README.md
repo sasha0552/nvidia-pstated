@@ -153,34 +153,46 @@ NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 0): NVAPI_NOT_SUPPORTED
 If GPU 0 does not support performance states, restart the daemon with --clock-mode.
 ```
 
-On these GPUs you can use `-c`/`--clock-mode`, which locks and unlocks the GPU clocks (as `nvidia-smi -lgc` does) instead of forcing a performance state:
+On these GPUs you can use `-c`/`--clock-mode`, which controls the GPU clocks (as `nvidia-smi -lgc` does) instead of forcing a performance state:
 
 ```sh
 ./nvidia-pstated --clock-mode
 ```
 
-By default, the daemon locks the graphics clock to the lowest clock the GPU reports in the low performance state, and restores the default clocks in the high performance state. Both values can be overridden with `--clock-gpu-low` and `--clock-gpu-high`:
+By default, the daemon sets the graphics clock to the lowest clock the GPU reports in the low performance state, and restores the default clocks in the high performance state. Both values can be overridden with `--clock-gpu-low` and `--clock-gpu-high`:
 
 ```sh
 ./nvidia-pstated --clock-mode --clock-gpu-low 135 --clock-gpu-high 1380
 ```
 
-Memory clocks are left untouched unless `--clock-mem-low` or `--clock-mem-high` is set, because locking them requires an Ampere or newer GPU, while locking the graphics clocks only requires a Volta or newer one.
-
 Note that clock mode requires root/admin permissions.
+
+#### Which mechanism is used
+
+The daemon picks the mechanism per GPU, from its architecture:
+
+| GPU | Mechanism | Memory clocks |
+| --- | --- | --- |
+| Volta and newer (V100, etc) | `nvmlDeviceSetGpuLockedClocks` | Only managed if `--clock-mem-low` or `--clock-mem-high` is set, as locking them requires an Ampere or newer GPU |
+| Older than Volta (P100, etc) | `nvmlDeviceSetApplicationsClocks` | Always set, as the call takes both domains at once; defaults to the lowest supported clock |
+
+Applications clocks are deprecated since NVML 13.0 and are removed in CUDA 14.0, so they are only compiled in when the CUDA toolkit used to build still provides them. Checking the architecture is enough to know they are available at runtime, since the last driver branch supporting pre-Volta GPUs is 580, which still provides them.
+
+On GPUs older than Volta, `--clock-gpu-high` and `--clock-mem-high` have to be set together to pin the high performance state; if either is left at `0`, the default clocks are restored instead.
 
 ### Recovering from a crash
 
-If the daemon is killed before it can restore the clocks (`SIGKILL`, power loss, etc), the GPUs are left locked to the low performance clocks. To unlock them:
+If the daemon is killed before it can restore the clocks (`SIGKILL`, power loss, etc), the GPUs are left at the low performance clocks. To restore the default ones:
 
 ```sh
+# Volta and newer
 nvidia-smi -rgc
-```
 
-If you were also managing memory clocks, unlock them as well:
-
-```sh
+# also needed if memory clocks were managed
 nvidia-smi -rmc
+
+# older than Volta
+nvidia-smi -rac
 ```
 
 ### systemd service
