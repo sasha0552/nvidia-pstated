@@ -146,14 +146,14 @@ Suppose you have 8 GPUs and you want to manage only the first 4 (as in `nvidia-s
 
 ### GPUs without performance states
 
-Some GPUs (Tesla P100, V100, etc) expose a single performance state, so `NvAPI_GPU_SetForcePstate` always fails on them and the daemon exits with:
+Some GPUs (Tesla P100, V100, etc) expose only a single performance state (a memory clock), so `NvAPI_GPU_SetForcePstate` always fails on them and the daemon exits with:
 
 ```text
 NvAPI_GPU_SetForcePstate(nvapiDevices[i], pstateId, 0): NVAPI_NOT_SUPPORTED
 If GPU 0 does not support performance states, restart the daemon with --clock-mode.
 ```
 
-On these GPUs you can use `-c`/`--clock-mode`, which controls the GPU clocks (as `nvidia-smi -lgc` does) instead of forcing a performance state:
+On these GPUs you can use `-c`/`--clock-mode`, which controls the GPU clocks (as `nvidia-smi -lgc` does) instead of changing performance states:
 
 ```sh
 ./nvidia-pstated --clock-mode
@@ -171,12 +171,12 @@ Note that clock mode requires root/admin permissions.
 
 The daemon picks the mechanism per GPU, from its architecture:
 
-| GPU | Mechanism | Memory clocks |
-| --- | --- | --- |
-| Volta and newer (V100, etc) | `nvmlDeviceSetGpuLockedClocks` | Only managed if `--clock-mem-low` or `--clock-mem-high` is set, as locking them requires an Ampere or newer GPU |
-| Older than Volta (P100, etc) | `nvmlDeviceSetApplicationsClocks` | Always set, as the call takes both domains at once; defaults to the lowest supported clock |
+| GPU              | Mechanism           | Memory clocks                                                                                                   |
+| ---------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Volta and newer  | Locked clocks       | Only managed if `--clock-mem-low` or `--clock-mem-high` is set, as locking them requires an Ampere or newer GPU |
+| Older than Volta | Applications clocks | Always set, as the call takes both domains at once; defaults to the lowest supported clock                      |
 
-Applications clocks are deprecated since NVML 13.0 and are removed in CUDA 14.0, so they are only compiled in when the CUDA toolkit used to build still provides them. Checking the architecture is enough to know they are available at runtime, since the last driver branch supporting pre-Volta GPUs is 580, which still provides them.
+Applications clocks are deprecated since NVML 13.0 and are removed in CUDA 14.0, so they are only compiled in when the CUDA toolkit used to build still provides them.
 
 On GPUs older than Volta, `--clock-gpu-high` and `--clock-mem-high` have to be set together to pin the high performance state; if either is left at `0`, the default clocks are restored instead.
 
