@@ -71,6 +71,42 @@
               description = "nvidia-pstated package to use";
             };
 
+            clockMode = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Control the GPU clocks instead of the performance states.
+
+                Required for GPUs that expose only a single performance state
+                (Tesla P100, V100, etc). Needs root, so the service does not run
+                as a dynamic user when this is enabled.
+              '';
+            };
+
+            clockGpuLow = mkOption {
+              type = types.int;
+              default = 0;
+              description = "Low performance graphics clock in MHz, in clock mode (0 = the lowest supported clock)";
+            };
+
+            clockGpuHigh = mkOption {
+              type = types.int;
+              default = 0;
+              description = "High performance graphics clock in MHz, in clock mode (0 = the default clocks)";
+            };
+
+            clockMemLow = mkOption {
+              type = types.int;
+              default = 0;
+              description = "Low performance memory clock in MHz, in clock mode (0 = unmanaged on Volta and newer)";
+            };
+
+            clockMemHigh = mkOption {
+              type = types.int;
+              default = 0;
+              description = "High performance memory clock in MHz, in clock mode (0 = unmanaged on Volta and newer)";
+            };
+
             ids = mkOption {
               type = types.str;
               default = "";
@@ -150,7 +186,9 @@
               wantedBy = [ "multi-user.target" ];
 
               serviceConfig = {
-                DynamicUser = true;
+                # Setting the clocks requires root, so a dynamic user is only used
+                # when the daemon manages performance states
+                DynamicUser = !config.services.nvidia-pstated.clockMode;
                 ExecStart =
                   let
                     args = [
@@ -171,19 +209,40 @@
                       "--iterations-before-keepalive"
                       (toString config.services.nvidia-pstated.iterationsBeforeKeepalive)
                     ]
-                    ++ optional (config.services.nvidia-pstated.ids != "") [
+                    ++ optionals config.services.nvidia-pstated.clockMode (
+                      [
+                        "--clock-mode"
+                      ]
+                      ++ optionals (config.services.nvidia-pstated.clockGpuLow != 0) [
+                        "--clock-gpu-low"
+                        (toString config.services.nvidia-pstated.clockGpuLow)
+                      ]
+                      ++ optionals (config.services.nvidia-pstated.clockGpuHigh != 0) [
+                        "--clock-gpu-high"
+                        (toString config.services.nvidia-pstated.clockGpuHigh)
+                      ]
+                      ++ optionals (config.services.nvidia-pstated.clockMemLow != 0) [
+                        "--clock-mem-low"
+                        (toString config.services.nvidia-pstated.clockMemLow)
+                      ]
+                      ++ optionals (config.services.nvidia-pstated.clockMemHigh != 0) [
+                        "--clock-mem-high"
+                        (toString config.services.nvidia-pstated.clockMemHigh)
+                      ]
+                    )
+                    ++ optionals (config.services.nvidia-pstated.ids != "") [
                       "--ids"
                       config.services.nvidia-pstated.ids
                     ]
-                    ++ optional (config.services.nvidia-pstated.disableFanScript != "") [
+                    ++ optionals (config.services.nvidia-pstated.disableFanScript != "") [
                       "--disable-fan-script"
                       config.services.nvidia-pstated.disableFanScript
                     ]
-                    ++ optional (config.services.nvidia-pstated.enableFanScript != "") [
+                    ++ optionals (config.services.nvidia-pstated.enableFanScript != "") [
                       "--enable-fan-script"
                       config.services.nvidia-pstated.enableFanScript
                     ]
-                    ++ optional (config.services.nvidia-pstated.keepaliveFanScript != "") [
+                    ++ optionals (config.services.nvidia-pstated.keepaliveFanScript != "") [
                       "--keepalive-fan-script"
                       config.services.nvidia-pstated.keepaliveFanScript
                     ];
